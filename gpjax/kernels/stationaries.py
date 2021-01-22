@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-import abc
-from typing import List, Optional, Union
+from typing import Union
 
-import haiku as hk
 import jax
-import numpy as np
+import objax
+from gpjax.custom_types import InputData, Lengthscales, Variance
 from gpjax.kernels.base import Kernel
 from gpjax.utilities.ops import difference_matrix, square_distance
 from jax import numpy as jnp
-from jax import vmap
-
-PRNGKey = jnp.ndarray
-ActiveDims = Union[slice, list]
 
 
 class Stationary(Kernel):
@@ -24,7 +19,10 @@ class Stationary(Kernel):
     """
 
     def __init__(
-        self, variance_init: int = 1.0, lengthscales_init: int = 1.0, **kwargs
+        self,
+        variance: Variance = 1.0,
+        lengthscales: Lengthscales = 1.0,
+        **kwargs,
     ):
         """
         :param variance: the (initial) value for the variance parameter.
@@ -42,46 +40,39 @@ class Stationary(Kernel):
                 raise TypeError(f"Unknown keyword argument: {kwarg}")
 
         super().__init__(**kwargs)
-        if not isinstance(variance_init, jnp.ndarray):
-            self.variance_init = jnp.array(variance_init)
+        if not isinstance(variance, jnp.ndarray):
+            self.variance = jnp.array(variance)
         else:
-            self.variance_init = variance_init
-        if not isinstance(variance_init, jnp.ndarray):
-            self.lengthscales_init = lengthscales_init
+            self.variance = variance
+        if not isinstance(lengthscales, jnp.ndarray):
+            self.lengthscales = lengthscales
         else:
-            self.lengthscales_init = jnp.array(lengthscales_init)
-        self._validate_ard_active_dims(lengthscales_init)
+            self.lengthscales = jnp.array(lengthscales)
+        print(type(self.variance))
+        print(type(self.lengthscales))
+        self.lengthscales = objax.TrainVar(self.lengthscales)
+        self.variance = objax.TrainVar(self.variance)
+        self._validate_ard_active_dims(self.lengthscales)
 
     @property
     def ard(self) -> bool:
         """
         Whether ARD behaviour is active.
         """
-        return self.lengthscales_init.ndims > 0
+        return self.lengthscales.ndims > 0
 
-    def scale(self, X: jnp.ndarray) -> jnp.ndarray:
+    def scale(self, X: InputData) -> jnp.ndarray:
         if X is not None:
-            lengthscales = hk.get_parameter(
-                "lengthscales",
-                shape=self.lengthscales_init.shape,
-                dtype=X.dtype,
-                init=hk.initializers.Constant(self.lengthscales_init),
-            )
-            X_scaled = X / lengthscales
+            X_scaled = X / self.lengthscales.value
             return X_scaled
         # X_scaled = X / lengthscales if X is not None else X
         else:
             return X
 
-    def K_diag(self, X):
+    @jax.partial(jax.jit, static_argnums=(0,))
+    def K_diag(self, X: InputData):
         # TODO not tested yet
-        variance = hk.get_parameter(
-            "variance",
-            shape=self.variance_init.shape,
-            dtype=X.dtype,
-            init=hk.initializers.Constant(self.variance_init),
-        )
-        return jnp.ones(jnp.shape(X)[:-1]) * jnp.squeeze(variance)
+        return jnp.ones(jnp.shape(X)[:-1]) * jnp.squeeze(self.variance.value)
         # return tf.fill(tf.shape(X)[:-1], tf.squeeze(self.variance))
 
 
@@ -97,7 +88,9 @@ class IsotropicStationary(Stationary):
         Euclidean distance. Should operate element-wise on r.
     """
 
-    def __call__(self, X: jnp.ndarray, X2: jnp.ndarray = None) -> jnp.ndarray:
+    # @jax.partial(jax.jit, static_argnums=(0, 1))
+    # @jax.partial(jax.jit, static_argnums=(0,))
+    def K(self, X: InputData, X2: InputData = None) -> jnp.ndarray:
         r2 = self.scaled_squared_euclid_dist(X, X2)
         return self.K_r2(r2)
 
@@ -109,7 +102,7 @@ class IsotropicStationary(Stationary):
         raise NotImplementedError
 
     def scaled_squared_euclid_dist(
-        self, X: jnp.ndarray, X2: jnp.ndarray = None
+        self, X: InputData, X2: InputData = None
     ) -> jnp.ndarray:
         """
         Returns ‖(X - X2ᵀ) / ℓ‖², i.e. the squared L₂-norm.
@@ -128,10 +121,11 @@ class AnisotropicStationary(Stationary):
     input dimension.
     """
 
-    def __call__(self, X: jnp.ndarray, X2: jnp.ndarray = None):
+    @jax.partial(jax.jit, static_argnums=(0, 1))
+    def K(self, X: InputData, X2: InputData = None):
         return self.K_d(self.scaled_difference_matrix(X, X2))
 
-    def scaled_difference_matrix(self, X: jnp.ndarray, X2: jnp.ndarray = None):
+    def scaled_difference_matrix(self, X: InputData, X2: InputData = None):
         """
         Returns [(X - X2ᵀ) / ℓ]. If X has shape [..., N, D] and
         X2 has shape [..., M, D], the output will have shape [..., N, M, D].
@@ -152,13 +146,7 @@ class SquaredExponential(IsotropicStationary):
     """
 
     def K_r2(self, r2: jnp.ndarray) -> jnp.ndarray:
-        variance = hk.get_parameter(
-            "variance",
-            shape=self.variance_init.shape,
-            dtype=r2.dtype,
-            init=hk.initializers.Constant(self.variance_init),
-        )
-        return variance * jnp.exp(-0.5 * r2)
+        return self.variance.value * jnp.exp(-0.5 * r2)
 
 
 class Cosine(AnisotropicStationary):
@@ -175,64 +163,4 @@ class Cosine(AnisotropicStationary):
     def K_d(self, d: jnp.ndarray) -> jnp.ndarray:
         d = jnp.sum(d, axis=-1)
         # d = tf.reduce_sum(d, axis=-1)
-        variance = hk.get_parameter(
-            "variance",
-            shape=self.variance_init.shape,
-            dtype=d.dtype,
-            init=hk.initializers.Constant(self.variance_init),
-        )
-        return variance * jnp.cos(2 * jnp.pi * d)
-
-
-if __name__ == "__main__":
-    x1 = jnp.linspace(0, 10, 20).reshape(10, 2)
-    x2 = jnp.linspace(0, 10, 60).reshape(30, 2)
-    # x1 = jnp.linspace(0, 10, 80 * 5).reshape(5, 4, 10, 2)
-    # x2 = jnp.linspace(0, 10, 36).reshape(1, 3, 6, 2)
-    print(x1.shape)
-    print(x2.shape)
-    # x2 = None
-
-    lengthscales = jnp.array([1, 0.1], dtype=jnp.float64)
-    variance = 2.0
-    kernel = hk.transform(
-        lambda x1, x2: SquaredExponential(
-            lengthscales_init=lengthscales, variance_init=variance
-        )(x1, x2)
-    )
-    # kernel = hk.transform(lambda x1, x2: Cosine(lengthscales_init=lengthscales, variance_init=variance)(x1, x2))
-    # kernel = SquaredExponential(
-    #     lengthscales_init=lengthscales, variance_init=variance_init
-    # )
-
-    @jax.jit
-    def cov_fn(
-        # kernel: Kernel,
-        params: hk.Params,
-        rng_key: PRNGKey,
-        x1: jnp.ndarray,
-        x2: jnp.ndarray,
-    ) -> jnp.ndarray:
-        """Covariance function"""
-        K = kernel.apply(params, rng_key, x1, x2)
-        return K
-        # outputs: VAEOutput = model.apply(params, rng_key, batch["image"])
-
-        # log_likelihood = -binary_cross_entropy(batch["image"], K)
-        # kl = kl_gaussian(outputs.mean, outputs.stddev**2)
-        # elbo = log_likelihood - kl
-
-        # return -jnp.mean(elbo)
-
-    print("kerne")
-    print(kernel)
-    rng_seq = hk.PRNGSequence(42)
-    params = kernel.init(next(rng_seq), x1, x2)
-    # params = kernel.init(next(rng_seq), x1)
-    print("params")
-    print(params)
-    cov = cov_fn(params, next(rng_seq), x1, x2)
-    # cov = cov_fn(params, next(rng_seq), x1, x2)
-    # cov = cov_fn(params, next(rng_seq), x1)
-    print("cov")
-    print(cov.shape)
+        return self.variance.value * jnp.cos(2 * jnp.pi * d)
