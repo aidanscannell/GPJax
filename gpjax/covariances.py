@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 from jax import jacfwd, jacrev
-from jax import numpy as np
+from jax import numpy as jnp
+
+from gpjax.custom_types import InputData
+from gpjax.kernels import Kernel
 
 
-def Kuu(inducing_inputs, kernel, jitter=1e-4):
+def Kuu(inducing_inputs, kernel: Kernel, jitter: jnp.float64 = 1e-4):
     Kzz = kernel.K(inducing_inputs, inducing_inputs)
-    Kzz += jitter * np.eye(len(inducing_inputs), dtype=Kzz.dtype)
+    Kzz += jitter * jnp.eye(len(inducing_inputs), dtype=Kzz.dtype)
     return Kzz
 
 
-def Kuf(inducing_inputs, kernel, Xnew):
+def Kuf(inducing_inputs, kernel: Kernel, Xnew: InputData):
     return kernel.K(inducing_inputs, Xnew)
 
 
@@ -22,7 +25,7 @@ def jacobian_cov_fn_wrt_x1(cov_fn, x1, x2):
     """
     dk = jacfwd(cov_fn, (0))(x1, x2)
     # TODO replace squeeze with correct dimensions
-    dk = np.squeeze(dk)
+    dk = jnp.squeeze(dk)
     return dk
 
 
@@ -43,7 +46,7 @@ def hessian_cov_fn_wrt_x1x1(cov_fn, x1):
     d2k = jacrev(jacfwd(cov_fn_))(x1)
     print(d2k.shape)
     # TODO replace squeeze with correct dimensions
-    d2k = np.squeeze(d2k)
+    d2k = jnp.squeeze(d2k)
 
     return d2k
 
@@ -54,10 +57,11 @@ def hessian_cov_fn_wrt_x1x1_hard_coded(cov_fn, lengthscale, x1):
     :param cov_fn: covariance function with signature cov_fn(x1, x1)
     :param x1: [1, input_dim]
     """
-    # lengthscale = np.array([0.4, 0.4])
-    l2 = lengthscale ** 2
+    # lengthscale = jnp.array([0.4, 0.4])
+    # l2 = lengthscale ** 2
+    l2 = lengthscale.value ** 2
     # l2 = kernel.lengthscale**2
-    l2 = np.diag(l2)
+    l2 = jnp.diag(l2)
     d2k = l2 * cov_fn(x1, x1)
     return d2k
 
