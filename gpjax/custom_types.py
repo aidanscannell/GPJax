@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-from jax import numpy as np
-from typing import Tuple
+from typing import Tuple, Union
 
+from jax import numpy as jnp
 
-MeanAndVariance = Tuple[np.array, np.array]
-InputData = np.array
-OutputData = np.array
-MeanFunc = np.float64
-# TODO replace DiffRBF with abstract kernel class
+MeanAndVariance = Tuple[jnp.ndarray, jnp.ndarray]
+InputData = jnp.ndarray
+OutputData = jnp.ndarray
+MeanFunc = jnp.float64
+
+Variance = Union[jnp.float64, jnp.ndarray]
+Lengthscales = Union[jnp.float64, jnp.ndarray]
