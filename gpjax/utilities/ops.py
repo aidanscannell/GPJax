@@ -7,22 +7,25 @@ from jax import numpy as jnp
 EllipsisType = type(...)
 
 
-def broadcasting_elementwise(op, a: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
-    """
-    Apply binary operation `op` to every pair in tensors `a` and `b`.
-    :param op: binary operator on tensors, e.g. jnp.add, jnp.substract
-    :param a: jnp.ndarray, shape [n_1, ..., n_a]
-    :param b: jnp.ndarray, shape [m_1, ..., m_b]
-    :return: jnp.ndarray, shape [n_1, ..., n_a, m_1, ..., m_b]
-    """
-    flatres = op(jnp.reshape(a, [-1, 1]), jnp.reshape(b, [1, -1]))
-    print("shape")
-    print(jnp.shape(a))
-    print(a.shape)
-    # shape = jnp.concatenate([jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))])
-    shape = [jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))]
-    print(shape)
-    return jnp.reshape(flatres, shape)
+# def broadcasting_elementwise(
+#     op, a: jnp.ndarray, b: jnp.ndarray
+# ) -> jnp.ndarray:
+#     """
+#     Apply binary operation `op` to every pair in tensors `a` and `b`.
+#     :param op: binary operator on tensors, e.g. jnp.add, jnp.substract
+#     :param a: jnp.ndarray, shape [n_1, ..., n_a]
+#     :param b: jnp.ndarray, shape [m_1, ..., m_b]
+#     :return: jnp.ndarray, shape [n_1, ..., n_a, m_1, ..., m_b]
+#     """
+#     flatres = op(jnp.reshape(a, [-1, 1]), jnp.reshape(b, [1, -1]))
+#     print("shape")
+#     print(jnp.shape(a))
+#     print(a.shape)
+#     print(flatres.shape)
+#     # shape = jnp.concatenate([jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))])
+#     shape = [jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))]
+#     print(shape)
+#     return jnp.reshape(flatres, shape)
 
 
 def square_distance(X: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
@@ -41,23 +44,28 @@ def square_distance(X: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
         Xs = jnp.sum(jnp.square(X), axis=-1, keepdims=True)
         XT = leading_transpose(X, perm=[..., -1, -2])
         dist = -2 * jnp.matmul(X, XT)
+        print("dist")
+        print(dist.shape)
+        print(Xs.shape)
+        print(XT.shape)
         XsT = leading_transpose(Xs, perm=[..., -1, -2])
         conj = jnp.conjugate(XsT)
         dist += Xs + conj
         return dist
-    Xs = jnp.sum(jnp.square(X), axis=-1)
-    X2s = jnp.sum(jnp.square(X2), axis=-1)
-    dist = -2 * jnp.tensordot(X, X2, [[-1], [-1]])
-    print("dist")
-    print(dist.shape)
-    print(Xs.shape)
-    print(X2s.shape)
-    dist += broadcasting_elementwise(jnp.add, Xs, X2s)
+    Xs = jnp.sum(jnp.square(X), axis=-1, keepdims=True)
+    X2s = jnp.sum(jnp.square(X2), axis=-1, keepdims=True)
+    X2sT = leading_transpose(X2s, perm=[..., -1, -2])
+    X2T = leading_transpose(X2, perm=[..., -1, -2])
+    dist = -2 * jnp.matmul(X, X2T)
+    dist2 = Xs + X2sT  # broadcast
+    dist += dist2
     return dist
 
 
 def leading_transpose(
-    tensor: jnp.ndarray, perm: List[Union[int, EllipsisType]], leading_dim: int = 0
+    tensor: jnp.ndarray,
+    perm: List[Union[int, EllipsisType]],
+    leading_dim: int = 0,
 ) -> jnp.ndarray:
     """
     Transposes tensors with leading dimensions. Leading dimensions in
@@ -98,25 +106,16 @@ def leading_transpose(
     return jnp.transpose(tensor, perm)
 
 
-def difference_matrix(X, X2):
+def difference_matrix(X, X2=None):
     """
     Returns (X - X2ᵀ)
     This function can deal with leading dimensions in X and X2.
     For example, If X has shape [M, D] and X2 has shape [N, D],
     the output will have shape [M, N, D]. If X has shape [I, J, M, D]
-    and X2 has shape [K, L, N, D], the output will have shape
-    [I, J, M, K, L, N, D].
+    and X2 has shape [I, J, N, D], the output will have shape
+    [I, J, M, N, D].
     """
     if X2 is None:
         X2 = X
-        diff = jnp.expand_dims(X, -2) - jnp.expand_dims(X2, -3)
-        return diff
-    Xshape = jnp.shape(X)
-    X2shape = jnp.shape(X2)
-    X = jnp.reshape(X, (-1, Xshape[-1]))
-    X2 = jnp.reshape(X2, (-1, X2shape[-1]))
-    diff = jnp.expand_dims(X, 1) - jnp.expand_dims(X2, 0)
-    diff = jnp.reshape(
-        diff, jnp.concatenate((Xshape[:-1], X2shape[:-1], [Xshape[-1]]), 0)
-    )
+    diff = jnp.expand_dims(X, -2) - jnp.expand_dims(X2, -3)
     return diff
