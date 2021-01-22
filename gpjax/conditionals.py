@@ -1,9 +1,52 @@
 #!/usr/bin/env python3
-from jax import numpy as np
+from jax import numpy as jnp
 from jax import scipy as sp
 
+from gpjax.covariances import Kuf, Kuu
+from gpjax.kernels import Kernel
 
-def base_conditional(Kmn, Kmm, Knn, f, full_cov=False, q_sqrt=None, white=False):
+InducingVariable = None
+
+
+def conditional(
+    Xnew: jnp.ndarray,
+    inducing_variable: InducingVariable,
+    kernel: Kernel,
+    f: jnp.ndarray,
+    full_cov: bool = False,
+    full_output_cov: bool = False,
+    q_sqrt: jnp.ndarray = None,
+    white: bool = False,
+    jitter: jnp.float64 = 1e-4,
+):
+    # Kmm = Kuu(X, kernel)
+    # # Kmm += jitter * jnp.eye(Kmm.shape[0])
+    # Kmn = kernel.K(X, Xnew)
+    # if full_cov:
+    #     Knn = kernel.K(Xnew, Xnew)
+    # else:
+    #     Knn = kernel.K_diag(Xnew)
+
+    # if q_sqrt is not None:
+    #     # TODO map over output dimension
+    #     q_sqrt = jnp.squeeze(q_sqrt)
+    #     q_sqrt = q_sqrt.reshape([q_sqrt.shape[-1], q_sqrt.shape[-1]])
+
+    """Single-output GP conditional."""
+    Kmm = Kuu(inducing_variable, kernel, jitter=jitter)  # [M, M]
+    Kmn = Kuf(inducing_variable, kernel, Xnew)  # [M, N]
+    Knn = kernel.K(Xnew, full_cov=full_cov)
+
+    mean, cov = base_conditional(
+        Kmn, Kmm, Knn, f, full_cov=full_cov, q_sqrt=q_sqrt, white=white
+    )  # [N, R],  [R, N, N] or [N, R]
+    return mean, cov
+    # return fmean, expand_independent_outputs(fvar, full_cov, full_output_cov)
+
+
+def base_conditional(
+    Kmn, Kmm, Knn, f, full_cov=False, q_sqrt=None, white=False
+):
     # Lm = sp.linalg.cho_factor(Kmm)
     print("Kmm")
     print(Kmm.shape)
@@ -20,7 +63,9 @@ def base_conditional(Kmn, Kmm, Knn, f, full_cov=False, q_sqrt=None, white=False)
     )
 
 
-def base_conditional_with_lm(Kmn, Lm, Knn, f, full_cov=False, q_sqrt=None, white=False):
+def base_conditional_with_lm(
+    Kmn, Lm, Knn, f, full_cov=False, q_sqrt=None, white=False
+):
     # c, low = sp.linalg.cho_factor(Lm)
     # A = sp.linalg.cho_solve(Lm, Kmn)
     A = sp.linalg.solve_triangular(Lm, Kmn, lower=True)
@@ -29,7 +74,7 @@ def base_conditional_with_lm(Kmn, Lm, Knn, f, full_cov=False, q_sqrt=None, white
     if full_cov:
         fvar = Knn - A.T @ A
     else:
-        fvar = Knn - np.sum(np.square(A), -2)
+        fvar = Knn - jnp.sum(jnp.square(A), -2)
 
     # another backsubstitution in the unwhitened case
     # if not white:
@@ -75,7 +120,7 @@ def base_conditional_with_lm(Kmn, Lm, Knn, f, full_cov=False, q_sqrt=None, white
             print("fvar")
             print(fvar.shape)
         else:
-            # fvar = fvar + np.sum(np.square(LTA), -2)
-            fvar = fvar + np.sum(np.square(LTA), -1)
+            # fvar = fvar + jnp.sum(jnp.square(LTA), -2)
+            fvar = fvar + jnp.sum(jnp.square(LTA), -1)
 
     return fmean, fvar
