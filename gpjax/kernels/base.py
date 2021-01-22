@@ -2,27 +2,31 @@
 import abc
 from typing import Optional, Union
 
-import haiku as hk
+# import haiku as hk
+import objax
 from jax import numpy as jnp
 
 PRNGKey = jnp.ndarray
 ActiveDims = Union[slice, list]
 
 
-class Kernel(hk.Module, metaclass=abc.ABCMeta):
+class Kernel(objax.Module, metaclass=abc.ABCMeta):
     """
     The basic kernel class. Handles active dims.
     """
 
     def __init__(
-        self, active_dims: Optional[ActiveDims] = None, name: Optional[str] = None
+        self,
+        active_dims: Optional[ActiveDims] = None,
+        name: Optional[str] = None,
     ):
         """
         :param active_dims: active dimensions, either a slice or list of
             indices into the columns of X.
         :param name: optional kernel name.
         """
-        super().__init__(name=name)
+        super().__init__()
+        # super().__init__(name=name)
         self._active_dims = self._normalize_active_dims(active_dims)
 
     @staticmethod
