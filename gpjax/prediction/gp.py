@@ -5,7 +5,7 @@ from gpjax.conditionals import base_conditional
 from gpjax.covariances import (Kuu, hessian_cov_fn_wrt_x1x1_hard_coded,
                                jacobian_cov_fn_wrt_x1)
 from gpjax.custom_types import InputData, MeanAndVariance, MeanFunc, OutputData
-from jax import numpy as np
+from jax import numpy as jnp
 from jax import scipy as sp
 
 
@@ -39,8 +39,8 @@ def gp_predict(
             )
             fmeans.append(fmu)
             fvars.append(fvar)
-        fmeans = np.stack(fmeans)
-        fvars = np.stack(fvars)
+        fmeans = jnp.stack(fmeans)
+        fvars = jnp.stack(fvars)
         return fmeans, fvars
     else:
         return gp_predict_single_output(
@@ -70,16 +70,16 @@ def gp_predict_single_output(
     # TODO add noise???
     Kmm = Kuu(X, kernel)
 
-    # Kmm += jitter * np.eye(Kmm.shape[0])
+    # Kmm += jitter * jnp.eye(Kmm.shape[0])
     Kmn = kernel.K(X, Xnew)
     if full_cov:
         Knn = kernel.K(Xnew, Xnew)
     else:
-        Knn = kernel.Kdiag(Xnew)
+        Knn = kernel.K_diag(Xnew)
 
     if q_sqrt is not None:
         # TODO map over output dimension
-        q_sqrt = np.squeeze(q_sqrt)
+        q_sqrt = jnp.squeeze(q_sqrt)
         q_sqrt = q_sqrt.reshape([q_sqrt.shape[-1], q_sqrt.shape[-1]])
 
     # TODO map over output dimension of Y??
@@ -103,30 +103,32 @@ def gp_jacobian_hard_coded(cov_fn, Xnew, X, Y, jitter=1e-4):
     output_dim = Y.shape[1]
 
     Kxx = cov_fn(X, X)
-    Kxx = Kxx + jitter * np.eye(Kxx.shape[0])
+    Kxx = Kxx + jitter * jnp.eye(Kxx.shape[0])
     chol = sp.linalg.cholesky(Kxx, lower=True)
     # TODO check cholesky is implemented correctly
     kinvy = sp.linalg.solve_triangular(chol, Y, lower=True)
 
     # dk_dt0 = kernel.dK_dX(Xnew, X, 0)
     # dk_dt1 = kernel.dK_dX(Xnew, X, 1)
-    # dk_dtT = np.stack([dk_dt0, dk_dt1], axis=1)
-    # dk_dtT = np.squeeze(dk_dtT)
+    # dk_dtT = jnp.stack([dk_dt0, dk_dt1], axis=1)
+    # dk_dtT = jnp.squeeze(dk_dtT)
     dk_dtT = jacobian_cov_fn_wrt_x1(cov_fn, Xnew, X)
 
     v = sp.linalg.solve_triangular(chol, dk_dtT, lower=True)
 
     # TODO lengthscale shouldn't be hard codded
-    lengthscale = np.array([0.4, 0.4])
+    lengthscale = jnp.array([0.4, 0.4])
     l2 = lengthscale ** 2
     # l2 = kernel.lengthscale**2
-    l2 = np.diag(l2)
+    l2 = jnp.diag(l2)
     d2k_dtt = -l2 * cov_fn(Xnew, Xnew)
 
     # calculate mean and variance of J
-    # mu_j = np.dot(dk_dtT, kinvy)
+    # mu_j = jnp.dot(dk_dtT, kinvy)
     mu_j = v.T @ kinvy
-    cov_j = d2k_dtt - np.matmul(v.T, v)  # d2Kd2t doesn't need to be calculated
+    cov_j = d2k_dtt - jnp.matmul(
+        v.T, v
+    )  # d2Kd2t doesn't need to be calculated
     return mu_j, cov_j
 
 
@@ -170,11 +172,11 @@ def gp_jacobian(
             )
             mu_js.append(mu_j)
             cov_js.append(cov_j)
-        mu_js = np.stack(mu_j)
-        cov_js = np.stack(cov_j)
+        mu_js = jnp.stack(mu_j)
+        cov_js = jnp.stack(cov_j)
     else:
         if q_sqrt is not None:
-            q_sqrt_ = np.squeeze(q_sqrt)
+            q_sqrt_ = jnp.squeeze(q_sqrt)
             q_sqrt_ = q_sqrt.reshape([q_sqrt_.shape[-1], q_sqrt_.shape[-1]])
         else:
             q_sqrt_ = q_sqrt
@@ -205,7 +207,7 @@ def gp_jacobian_single_output(
 ) -> MeanAndVariance:
     assert Xnew.shape[1] == X.shape[1]
     Kxx = kernel.K(X, X)
-    Kxx += jitter * np.eye(Kxx.shape[0])
+    Kxx += jitter * jnp.eye(Kxx.shape[0])
     print("Kxx")
     print(Kxx.shape)
     dKdx1 = jacobian_cov_fn_wrt_x1(kernel.K, Xnew, X)
@@ -214,7 +216,8 @@ def gp_jacobian_single_output(
     # print(dKdx1)
     # d2K = hessian_cov_fn_wrt_x1x1(kernel.K, Xnew)
     # TODO cheating here - only works for RBF kernel
-    lengthscale = kernel.lengthscale
+    # lengthscale = kernel.lengthscales.value
+    lengthscale = kernel.lengthscales
     d2K = hessian_cov_fn_wrt_x1x1_hard_coded(kernel.K, lengthscale, Xnew)
     print("d2k")
     print(d2K.shape)
@@ -222,7 +225,7 @@ def gp_jacobian_single_output(
 
     if q_sqrt is not None:
         # TODO map over output dimension
-        # q_sqrt = np.squeeze(q_sqrt)
+        # q_sqrt = jnp.squeeze(q_sqrt)
         q_sqrt = q_sqrt.reshape([q_sqrt.shape[-1], q_sqrt.shape[-1]])
 
     mu_j, cov_j = base_conditional(
