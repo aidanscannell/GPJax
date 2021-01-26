@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "GPJax"
 version = "0.1.0"
-description = "Minimal Gaussian process library in JAX."
+description = "Minimal Gaussian process library in JAX using Objax for managing state."
 authors = ["Aidan Scannell <scannell.aidan@gmail.com>"]
 
 [tool.poetry.dependencies]
