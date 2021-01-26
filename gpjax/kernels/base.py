@@ -10,7 +10,7 @@ PRNGKey = jnp.ndarray
 ActiveDims = Union[slice, list]
 
 
-class Kernel(objax.Module, metaclass=abc.ABCMeta):
+class Kernel(objax.Module, abc.ABC):
     """
     The basic kernel class. Handles active dims.
     """
