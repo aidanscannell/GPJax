@@ -1,0 +1,16 @@
+* GPJax: Gaussian processes in JAX
+  
+This is a minimal package for implementing Gaussian process models in Python using [[https://github.com/google/jax][JAX]].
+I have spent a lot of time using [[https://github.com/GPflow/GPflow][GPflow]] and I like how they implement their GP library, in particular,
+their focus on variational inference and how they implement GP conditionals.
+As such, this package takes a similar approach but offers the benefits (and ease) of having [[https://github.com/google/jax][JAX]] under the hood.
+=GPJax= uses [[https://github.com/google/objax][Objax]] for state management.
+
+This package is a work in progress and functionality will realistically be implemented when I need it for my research.
+Currently my work focuses on making predictions with Sparse Variational Gaussian Processes,
+which is the only model implemented.
+I haven't implemented a lower bound yet, I have only implemented the predictive methods and their derivatives
+with respect to the inputs...
+
+* TODO
+  [] - Implement SVGP lower bound 
