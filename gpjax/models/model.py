@@ -1,204 +1,177 @@
 #!/usr/bin/env python3
 import abc
-import haiku as hk
-from jax import numpy as jnp
+from typing import Optional
+
+import jax
+import jax.numpy as jnp
+import objax
+from gpjax.conditionals import base_conditional
+from gpjax.covariances import (hessian_cov_fn_wrt_X1X1,
+                               hessian_cov_fn_wrt_x1x1_hard_coded,
+                               jacobian_cov_fn_wrt_X1)
+from gpjax.custom_types import InputData, MeanAndVariance
+from gpjax.kernels import Kernel
+from gpjax.mean_functions import MeanFunction, Zero
+
+jax.config.update("jax_enable_x64", True)
+
+# create types
+Likelihood = None
+InducingVariable = None
 
 
-class BayesianModel(hk.Module, metaclass=abc.ABCMeta):
-    """Bayesian model"""
-
-    def log_prior_density(self) -> jnp.ndarray:
-        """
-        Sum of the log prior probability densities of all (constrained) variables in this model.
-        """
-        if self.trainable_parameters:
-            return tf.add_n([p.log_prior_density() for p in self.trainable_parameters])
-        else:
-            return to_default_float(0.0)
-
-    def log_posterior_density(self, *args, **kwargs) -> jnp.ndarray:
-        """
-        This may be the posterior with respect to the hyperparameters (e.g. for
-        GPR) or the posterior with respect to the function (e.g. for GPMC and
-        SGPMC). It assumes that maximum_log_likelihood_objective() is defined
-        sensibly.
-        """
-        return self.maximum_log_likelihood_objective(*args, **kwargs) + self.log_prior_density()
-
-    def _training_loss(self, *args, **kwargs) -> jnp.ndarray:
-        """
-        Training loss definition. To allow MAP (maximum a-posteriori) estimation,
-        adds the log density of all priors to maximum_log_likelihood_objective().
-        """
-        return -(self.maximum_log_likelihood_objective(*args, **kwargs) + self.log_prior_density())
-
-    @abc.abstractmethod
-    def maximum_log_likelihood_objective(self, *args, **kwargs) -> jnp.ndarray:
-        """
-        Objective for maximum likelihood estimation. Should be maximized. E.g.
-        log-marginal likelihood (hyperparameter likelihood) for GPR, or lower
-        bound to the log-marginal likelihood (ELBO) for sparse and variational
-        GPs.
-        """
-        raise NotImplementedError
-
-
-class GPModel(BayesianModel):
-    r"""
-    A stateless base class for Gaussian process models, that is, those of the
-    form
-    .. math::
-       :nowrap:
-       \begin{align}
-           \theta        & \sim p(\theta) \\
-           f             & \sim \mathcal{GP}(m(x), k(x, x'; \theta)) \\
-           f_i           & = f(x_i) \\
-           y_i \,|\, f_i & \sim p(y_i|f_i)
-       \end{align}
-    This class mostly adds functionality for predictions. To use it, inheriting
-    classes must define a predict_f function, which computes the means and
-    variances of the latent function.
-    These predictions are then pushed through the likelihood to obtain means
-    and variances of held out data, self.predict_y.
-    The predictions can also be used to compute the (log) density of held-out
-    data via self.predict_log_density.
-    It is also possible to draw samples from the latent GPs using
-    self.predict_f_samples.
-    """
-
+class GPBase(objax.Module, abc.ABC):
     def __init__(
         self,
         kernel: Kernel,
         likelihood: Likelihood,
         mean_function: Optional[MeanFunction] = None,
         num_latent_gps: int = None,
+        jitter=1e-6,
     ):
-        super().__init__()
-        assert num_latent_gps is not None, "GPModel requires specification of num_latent_gps"
+        assert (
+            num_latent_gps is not None
+        ), "GP requires specification of num_latent_gps"
         self.num_latent_gps = num_latent_gps
+        self.kernel = kernel
+        self.likelihood = likelihood
         if mean_function is None:
             mean_function = Zero()
         self.mean_function = mean_function
-        self.kernel = kernel
-        self.likelihood = likelihood
-
-    @staticmethod
-    def calc_num_latent_gps_from_data(data, kernel: Kernel, likelihood: Likelihood) -> int:
-        """
-        Calculates the number of latent GPs required based on the data as well
-        as the type of kernel and likelihood.
-        """
-        _, Y = data
-        output_dim = Y.shape[-1]
-        return GPModel.calc_num_latent_gps(kernel, likelihood, output_dim)
-
-    @staticmethod
-    def calc_num_latent_gps(kernel: Kernel, likelihood: Likelihood, output_dim: int) -> int:
-        """
-        Calculates the number of latent GPs required given the number of
-        outputs `output_dim` and the type of likelihood and kernel.
-        Note: It's not nice for `GPModel` to need to be aware of specific
-        likelihoods as here. However, `num_latent_gps` is a bit more broken in
-        general, we should fix this in the future. There are also some slightly
-        problematic assumptions re the output dimensions of mean_function.
-        See https://github.com/GPflow/GPflow/issues/1343
-        """
-        if isinstance(kernel, MultioutputKernel):
-            # MultioutputKernels already have num_latent_gps attributes
-            num_latent_gps = kernel.num_latent_gps
-        elif isinstance(likelihood, SwitchedLikelihood):
-            # the SwitchedLikelihood partitions/stitches based on the last
-            # column in Y, but we should not add a separate latent GP for this!
-            # hence decrement by 1
-            num_latent_gps = output_dim - 1
-            assert num_latent_gps > 0
-        else:
-            num_latent_gps = output_dim
-
-        return num_latent_gps
+        self.jitter = jitter
 
     @abc.abstractmethod
     def predict_f(
-        self, Xnew: InputData, full_cov: bool = False, full_output_cov: bool = False
-    ) -> MeanAndVariance:
-        raise NotImplementedError
-
-    def predict_f_samples(
         self,
         Xnew: InputData,
-        num_samples: Optional[int] = None,
-        full_cov: bool = True,
+        full_cov: bool = False,
         full_output_cov: bool = False,
-    ) -> tf.Tensor:
-        """
-        Produce samples from the posterior latent function(s) at the input points.
-        :param Xnew: InputData
-            Input locations at which to draw samples, shape [..., N, D]
-            where N is the number of rows and D is the input dimension of each point.
-        :param num_samples:
-            Number of samples to draw.
-            If `None`, a single sample is drawn and the return shape is [..., N, P],
-            for any positive integer the return shape contains an extra batch
-            dimension, [..., S, N, P], with S = num_samples and P is the number of outputs.
+    ) -> MeanAndVariance:
+        """Compute mean and (co)variance of latent function at Xnew.
+
+        :param Xnew: inputs with shape [num_test, input_dim]
         :param full_cov:
-            If True, draw correlated samples over the inputs. Computes the Cholesky over the
+            If True, draw correlated samples over Xnew. Computes the Cholesky over the
             dense covariance matrix of size [num_data, num_data].
             If False, draw samples that are uncorrelated over the inputs.
         :param full_output_cov:
-            If True, draw correlated samples over the outputs.
-            If False, draw samples that are uncorrelated over the outputs.
-        Currently, the method does not support `full_output_cov=True` and `full_cov=True`.
+            TODO Not implemented
+        :returns: tuple of Tensors (mean, variance),
+            means.shape == [num_test, output_dim],
+            If full_cov=True and full_output_cov=False,
+                var.shape == [output_dim, num_test, num_test]
+            If full_cov=False,
+                var.shape == [num_test, output_dim]
         """
-        if full_cov and full_output_cov:
-            raise NotImplementedError(
-                "The combination of both `full_cov` and `full_output_cov` is not supported."
-            )
+        raise NotImplementedError
 
-        # check below for shape info
-        mean, cov = self.predict_f(Xnew, full_cov=full_cov, full_output_cov=full_output_cov)
-        if full_cov:
-            # mean: [..., N, P]
-            # cov: [..., P, N, N]
-            mean_for_sample = tf.linalg.adjoint(mean)  # [..., P, N]
-            samples = sample_mvn(
-                mean_for_sample, cov, full_cov, num_samples=num_samples
-            )  # [..., (S), P, N]
-            samples = tf.linalg.adjoint(samples)  # [..., (S), N, P]
-        else:
-            # mean: [..., N, P]
-            # cov: [..., N, P] or [..., N, P, P]
-            samples = sample_mvn(
-                mean, cov, full_output_cov, num_samples=num_samples
-            )  # [..., (S), N, P]
-        return samples  # [..., (S), N, P]
-
-    def predict_y(
-        self, Xnew: InputData, full_cov: bool = False, full_output_cov: bool = False
+    def predict_jacobian_f_wrt_Xnew(
+        self,
+        Xnew: InputData,
+        full_cov: bool = False,
+        full_output_cov: bool = False,
     ) -> MeanAndVariance:
         """
-        Compute the mean and variance of the held-out data at the input points.
+        This only works for single output GPs
+        TODO change this if GP or SVGP
+        TODO implement full_output_cov functionality
         """
+        f = self.q_mu
+        X = self.inducing_variable
+
+        Kxx = self.kernel.K(X, X)
+        Kxx += self.jitter * jnp.eye(Kxx.shape[0])
+        # print("Kxx")
+        # print(Kxx.shape)
+        if len(Xnew.shape) == 2:
+            num_test = Xnew.shape[0]
+            Kxx = jnp.broadcast_to(Kxx, [num_test, *Kxx.shape])
+        # print(Kxx.shape)
+        # print(type(Kxx))
+        dKdx1 = jacobian_cov_fn_wrt_X1(self.kernel.K, Xnew, X)
+        # print("dKdx1")
+        # print(dKdx1.shape)
+        # print(dKdx1)
+        # print(type(dKdx1))
+        # d2K = hessian_cov_fn_wrt_x1x1(kernel.K, Xnew)
+        # TODO cheating here - only works for RBF kernel
+        # lengthscale = kernel.lengthscales.value
+        # lengthscale = self.kernel.lengthscales
+        # d2K = hessian_cov_fn_wrt_x1x1_hard_coded(
+        #     self.kernel.K, self.kernel.lengthscales, Xnew
+        # )
+
+        # def hessian_kernel_wrt_x1x1(Xnew: InputData):
+        #     def cov_fn(x):
+        #         x = x.reshape(1, -1)
+        #         return kernel.K(x)
+        #     d2K = jax.hessian(cov_fn)(Xnew.reshape(-1))
+        #     input_dim = Xnew.shape[1]
+        #     d2K = d2K.reshape([input_dim, input_dim])
+
+        # d2K = hessian_cov_fn_wrt_x1x1(self.kernel.K, Xnew)
+        d2K = hessian_cov_fn_wrt_X1X1(self.kernel.K, Xnew)
+        # d2K = hessian_cov_fn_wrt_x1x1_hard_coded(self.kernel.K, Xnew)
+        # print("d2k inside gp class")
+        # print(d2K.shape)
+        # print(d2K)
+        # print(type(d2K))
+
+        # if self.q_sqrt is not None:
+        #     # todo map over output dimension
+        #     # q_sqrt = jnp.squeeze(q_sqrt)
+        # q_sqrt = self.q_sqrt.reshape(
+        #     [self.q_sqrt.shape[-1], self.q_sqrt.shape[-1]]
+        # )
+
+        # TODO this is VERY hacky, only works for single output GPs
+        # handle output dimension better
+        self.num_inducing_points = self.q_sqrt.shape[-1]
+        q_sqrt = self.q_sqrt.reshape(
+            [self.num_inducing_points, self.num_inducing_points]
+        )
+
+        def single_base_conditional(dKdx1, Kxx, d2K):
+            return base_conditional(
+                Kmn=dKdx1,
+                Kmm=Kxx,
+                Knn=d2K,
+                f=f,
+                full_cov=full_cov,
+                q_sqrt=q_sqrt,
+                white=self.whiten,
+            )
+
+        if len(Xnew.shape) == 2:
+            jac_mean, jac_cov = jax.vmap(single_base_conditional)(
+                dKdx1, Kxx, d2K
+            )
+        else:
+            jac_mean, jac_cov = single_base_conditional(dKdx1, Kxx, d2K)
+        # jac_mean, jac_cov = base_conditional(
+        #     Kmn=dKdx1,
+        #     Kmm=Kxx,
+        #     Knn=d2K,
+        #     f=f,
+        #     full_cov=full_cov,
+        #     q_sqrt=q_sqrt,
+        #     white=self.whiten,
+        # )
+        return jac_mean, jac_cov
+
+    def predict_y(
+        self,
+        Xnew: InputData,
+        full_cov: bool = False,
+        full_output_cov: bool = False,
+    ) -> MeanAndVariance:
+        """Compute the mean and (co)variance of function at Xnew."""
         if full_cov or full_output_cov:
-            # See https://github.com/GPflow/GPflow/issues/1461
             raise NotImplementedError(
                 "The predict_y method currently supports only the argument values full_cov=False and full_output_cov=False"
             )
 
-        f_mean, f_var = self.predict_f(Xnew, full_cov=full_cov, full_output_cov=full_output_cov)
+        f_mean, f_var = self.predict_f(
+            Xnew, full_cov=full_cov, full_output_cov=full_output_cov
+        )
         return self.likelihood.predict_mean_and_var(f_mean, f_var)
-
-    def predict_log_density(
-        self, data: RegressionData, full_cov: bool = False, full_output_cov: bool = False
-    ) -> tf.Tensor:
-        """
-        Compute the log density of the data at the new data points.
-        """
-        if full_cov or full_output_cov:
-            # See https://github.com/GPflow/GPflow/issues/1461
-            raise NotImplementedError(
-                "The predict_log_density method currently supports only the argument values full_cov=False and full_output_cov=False"
-            )
-
-        X, Y = data
-        f_mean, f_var = self.predict_f(X, full_cov=full_cov, full_output_cov=full_output_cov)
-        return self.likelihood.predict_log_density(f_mean, f_var, Y)
