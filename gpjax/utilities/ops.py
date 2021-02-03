@@ -44,10 +44,6 @@ def square_distance(X: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
         Xs = jnp.sum(jnp.square(X), axis=-1, keepdims=True)
         XT = leading_transpose(X, perm=[..., -1, -2])
         dist = -2 * jnp.matmul(X, XT)
-        print("dist")
-        print(dist.shape)
-        print(Xs.shape)
-        print(XT.shape)
         XsT = leading_transpose(Xs, perm=[..., -1, -2])
         conj = jnp.conjugate(XsT)
         dist += Xs + conj
