@@ -11,17 +11,17 @@ Currently my work focuses on making predictions with Sparse Variational Gaussian
 which is the only model (partly) implemented.
 
 * TODOs
-  [] - Implement SVGP lower bound 
-  [] - Implement likelihoods
-    [] - Implement base likelihood
-    [] - Implement Gaussian likelihood
-    [] - Implement Bernoulli likelihood
-    [] - Implement Softmax likelihood
-  [] - Implement multi-output conditionals
-  [] - Implement gpjax.models.GPBase.predict_jacobian_y_wrt_Xnew
-    [] - Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
+- [] Implement SVGP lower bound 
+- [] Implement likelihoods
+  - [] Implement base likelihood
+  - [] Implement Gaussian likelihood
+  - [] Implement Bernoulli likelihood
+  - [] Implement Softmax likelihood
+- [] Implement multi-output conditionals
+- [] Implement gpjax.models.GPBase.predict_jacobian_y_wrt_Xnew
+  - [] Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
 
-  [] - Tests for single output conditionals
-  [] - Tests for gpjax.models.SVGP.predict_f
-  [] - Tests for gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew
-  [] - Tests for gpjax.models.GPBase.predict_y
+- [] Tests for single output conditionals
+- [] Tests for gpjax.models.SVGP.predict_f
+- [] Tests for gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew
+- [] Tests for gpjax.models.GPBase.predict_y
