@@ -1,6 +1,6 @@
 * GPJax: Gaussian processes in JAX
   
-This is a minimal package for implementing Gaussian process models in Python using [[https://github.com/google/jax][JAX]].
+=GPJax= is a minimal package for implementing Gaussian process models in Python using [[https://github.com/google/jax][JAX]].
 I have spent a lot of time using [[https://github.com/GPflow/GPflow][GPflow]] and I like how they implement their GP library, in particular,
 their focus on variational inference and how they implement GP conditionals.
 As such, this package takes a similar approach but offers the benefits (and ease) of having [[https://github.com/google/jax][JAX]] under the hood.
@@ -8,9 +8,20 @@ As such, this package takes a similar approach but offers the benefits (and ease
 
 This package is a work in progress and functionality will realistically be implemented when I need it for my research.
 Currently my work focuses on making predictions with Sparse Variational Gaussian Processes,
-which is the only model implemented.
-I haven't implemented a lower bound yet, I have only implemented the predictive methods and their derivatives
-with respect to the inputs...
+which is the only model (partly) implemented.
 
-* TODO
+* TODOs
   [] - Implement SVGP lower bound 
+  [] - Implement likelihoods
+    [] - Implement base likelihood
+    [] - Implement Gaussian likelihood
+    [] - Implement Bernoulli likelihood
+    [] - Implement Softmax likelihood
+  [] - Implement multi-output conditionals
+  [] - Implement gpjax.models.GPBase.predict_jacobian_y_wrt_Xnew
+    [] - Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
+
+  [] - Tests for single output conditionals
+  [] - Tests for gpjax.models.SVGP.predict_f
+  [] - Tests for gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew
+  [] - Tests for gpjax.models.GPBase.predict_y
