@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-from typing import Union
 
-import jax
 import objax
 from gpjax.custom_types import InputData, Lengthscales, Variance
 from gpjax.kernels.base import Kernel
@@ -20,17 +18,16 @@ class Stationary(Kernel):
 
     def __init__(
         self,
-        variance: Variance = 1.0,
-        lengthscales: Lengthscales = 1.0,
+        variance: Variance = jnp.array([1.0]),
+        lengthscales: Lengthscales = jnp.array([1.0]),
         **kwargs,
     ):
         """
         :param variance: the (initial) value for the variance parameter.
-        :param lengthscales: the (initial) value for the lengthscale
-            parameter(s), to induce ARD behaviour this must be initialised as
-            an array the same length as the the number of active dimensions
-            e.g. [1., 1., 1.]. If only a single value is passed, this value
-            is used as the lengthscale of each dimension.
+        :param lengthscales: the (initial) value for the lengthscale.
+            Initialising as an array induces ARD behaviour.
+            Array must be the same length as the the number of active dimensions.
+            If a single value is passed, then it is used for each dimension.
         :param kwargs: accepts `name` and `active_dims`, which is a list or
             slice of indices which controls which columns of X are used (by
             default, all columns are used).
@@ -69,7 +66,6 @@ class Stationary(Kernel):
         else:
             return X
 
-    @jax.partial(jax.jit, static_argnums=(0,))
     def K_diag(self, X: InputData):
         # TODO not tested yet
         return jnp.ones(jnp.shape(X)[:-1]) * jnp.squeeze(self.variance.value)
@@ -93,6 +89,9 @@ class IsotropicStationary(Stationary):
     def K(self, X: InputData, X2: InputData = None) -> jnp.ndarray:
         r2 = self.scaled_squared_euclid_dist(X, X2)
         return self.K_r2(r2)
+
+    def __call__(self, X: InputData, X2: InputData = None) -> jnp.ndarray:
+        return self.K(X, X2)
 
     def K_r2(self, r2: jnp.ndarray) -> jnp.ndarray:
         if hasattr(self, "K_r"):
@@ -121,7 +120,7 @@ class AnisotropicStationary(Stationary):
     input dimension.
     """
 
-    @jax.partial(jax.jit, static_argnums=(0, 1))
+    # @jax.partial(jax.jit, static_argnums=(0, 1))
     def K(self, X: InputData, X2: InputData = None):
         return self.K_d(self.scaled_difference_matrix(X, X2))
 
