@@ -4,6 +4,7 @@ from jax import scipy as sp
 
 from gpjax.covariances import Kuf, Kuu
 from gpjax.kernels import Kernel
+from gpjax.utilities import leading_transpose
 
 InducingVariable = None
 
@@ -33,23 +34,34 @@ def conditional(
     #     q_sqrt = q_sqrt.reshape([q_sqrt.shape[-1], q_sqrt.shape[-1]])
 
     """Single-output GP conditional."""
+    print("inside conditional")
+    print(Xnew.shape)
     Kmm = Kuu(inducing_variable, kernel, jitter=jitter)  # [M, M]
     Kmn = Kuf(inducing_variable, kernel, Xnew)  # [M, N]
-    Knn = kernel.K(Xnew, full_cov=full_cov)
+    # Knn = kernel.K(Xnew, full_cov=full_cov)
+    if full_cov:
+        Knn = kernel.K(Xnew)
+    else:
+        Knn = kernel.K_diag(Xnew)
+
+    # TODO handle multioutput GPs
+    if len(q_sqrt.shape)== 3 and q_sqrt.shape[0] == 1:
+        q_sqrt = q_sqrt[0, :, :]
+    else:
+        raise ValueError("Multioutput GPs not implemented yet")
 
     mean, cov = base_conditional(
         Kmn, Kmm, Knn, f, full_cov=full_cov, q_sqrt=q_sqrt, white=white
-    )  # [N, R],  [R, N, N] or [N, R]
+    )
     return mean, cov
-    # return fmean, expand_independent_outputs(fvar, full_cov, full_output_cov)
 
 
 def base_conditional(
     Kmn, Kmm, Knn, f, full_cov=False, q_sqrt=None, white=False
 ):
     # Lm = sp.linalg.cho_factor(Kmm)
-    print("Kmm")
-    print(Kmm.shape)
+    # print("Kmm")
+    # print(Kmm.shape)
     Lm = sp.linalg.cholesky(Kmm, lower=True)
     return base_conditional_with_lm(
         Kmn=Kmn,
@@ -72,10 +84,23 @@ def base_conditional_with_lm(
 
     # compute the covariance due to the conditioning
     if full_cov:
-        fvar = Knn - A.T @ A
+        # fvar = Knn - A.T @ A
+        # print("A")
+        # print(A.shape)
+        # print(Knn.shape)
+        # print(Kmn.shape)
+        # print(Lm.shape)
+        # AT = jnp.transpose(A, [A.shape])
+        AT = leading_transpose(A, perm=[..., -1, -2])
+        # print(AT.shape)
+        fvar = Knn - jnp.matmul(AT, A)
     else:
         fvar = Knn - jnp.sum(jnp.square(A), -2)
+        print('fvar 1 ')
+        print(fvar.shape)
 
+    # print("f")
+    # print(f.shape)
     # another backsubstitution in the unwhitened case
     # if not white:
     #     A = sp.linalg.solve_triangular(Lm.T, A, lower=False)
@@ -92,9 +117,9 @@ def base_conditional_with_lm(
         q_sqrt_dims = len(q_sqrt.shape)
         if q_sqrt_dims == 2:
             # LTA = sp.linalg.solve_triangular(Lm, q_sqrt)
-            print("LTA")
-            print(q_sqrt.shape)
-            print(A.shape)
+            # print("LTA")
+            # print(q_sqrt.shape)
+            # print(A.shape)
             # B = sp.linalg.cho_solve(Lm, q_sqrt)
             # print(LTA.shape)
             # LTALTA = A.T @ LTA
@@ -106,7 +131,7 @@ def base_conditional_with_lm(
             # print(q_sqrtT[:, :, None].shape)
             # LTA = A * q_sqrtT[:, :, None]
             # print('LTA')
-            print(LTA.shape)
+            # print(LTA.shape)
             # LTA = A * tf.expand_dims(tf.transpose(q_sqrt), 2)  # [R, M, N]
         else:  # pragma: no cover
             raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt_dims))
@@ -117,10 +142,13 @@ def base_conditional_with_lm(
             fvar = fvar + LTA @ LTA.T
             # fvar = fvar + LTA.T @ LTA
             # fvar = fvar + LTALTA @ LTALTA.T
-            print("fvar")
-            print(fvar.shape)
+            # print("fvar")
+            # print(fvar.shape)
         else:
             # fvar = fvar + jnp.sum(jnp.square(LTA), -2)
+            print('fvar 2 ')
+            print(LTA.shape)
             fvar = fvar + jnp.sum(jnp.square(LTA), -1)
+            print(fvar.shape)
 
     return fmean, fvar
