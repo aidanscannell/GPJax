@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-from jax import jacfwd, jacrev
+import jax
+from jax import jacfwd
 from jax import numpy as jnp
+from jax.config import config
 
 from gpjax.custom_types import InputData
 from gpjax.kernels import Kernel
+
+config.update("jax_enable_x64", True)
 
 
 def Kuu(inducing_inputs, kernel: Kernel, jitter: jnp.float64 = 1e-4):
@@ -16,39 +20,69 @@ def Kuf(inducing_inputs, kernel: Kernel, Xnew: InputData):
     return kernel.K(inducing_inputs, Xnew)
 
 
-def jacobian_cov_fn_wrt_x1(cov_fn, x1, x2):
-    """Calculate derivative of cov_fn wrt to x1
+def jacobian_cov_fn_wrt_X1(
+    cov_fn, X1: InputData, X2: InputData
+) -> jnp.ndarray:
+    """Calculate Jacobian of cov_fn(X1, X2) wrt to X1
 
     :param cov_fn: covariance function with signature cov_fn(x1, x2)
-    :param x1: [1, input_dim]
-    :param x2: [num_x2, input_dim]
+    :param x1: tensor [num_X1, input_dim] or [input_dim,]
+    :param x2: tensor [num_x2, input_dim]
+    :returns: jacobian of covariance funciton wrt X1
+              if X1.shape == [num_X1, input_dim]
+                hessian.shape = [num_X1, num_X2, input_dim]
+              if X1.shape == [input_dim,]
+                hessian.shape = [num_X2, input_dim]
     """
-    dk = jacfwd(cov_fn, (0))(x1, x2)
-    # TODO replace squeeze with correct dimensions
-    dk = jnp.squeeze(dk)
-    return dk
+    input_dim = X2.shape[1]
+    num_X2 = X2.shape[0]
+
+    def jacobian_cov_fn_wrt_single_x1(x1):
+        jac = jacfwd(cov_fn, (0))(x1, X2)
+        jac = jac.reshape(num_X2, input_dim)
+        return jac
+
+    if len(X1.shape) == 1:
+        jac = jacobian_cov_fn_wrt_single_x1(X1)
+        assert jac.shape == (num_X2, input_dim)
+    else:
+        num_X1 = X1.shape[0]
+        jac = jax.vmap(jacobian_cov_fn_wrt_single_x1)(X1)
+        assert jac.shape == (num_X1, num_X2, input_dim)
+    return jac
 
 
-def hessian_cov_fn_wrt_x1x1(cov_fn, x1):
-    """Calculate derivative of cov_fn(x1, x1) wrt to x1
+def hessian_cov_fn_wrt_X1X1(cov_fn, X1: InputData) -> jnp.ndarray:
+    """Calculate Hessian of cov_fn(X1, X1) wrt to X1
 
-    :param cov_fn: covariance function with signature cov_fn(x1, x1)
-    :param x1: [1, input_dim]
+    :param cov_fn: covariance function with signature cov_fn(X1, X1)
+    :param x1: [num_X1, input_dim] or [input_dim,]
+    :returns: hessian of covarinace function wrt to X1
+              if X1.shape == [num_X1, input_dim]
+                hessian.shape = [num_X1, input_dim, input_dim]
+              if X1.shape == [input_dim,]
+                hessian.shape = [input_dim, input_dim]
     """
 
-    def cov_fn_(x1):
-        x1 = x1.reshape([1, -1])
-        return cov_fn(x1, x1)
+    def hessian_cov_fn_wrt_single_x1x1(x1: InputData):
+        def cov_fn_single_input(x):
+            x = x.reshape(1, -1)
+            return cov_fn(x)
 
-    print("inside hessian cov_fn")
-    print(x1.shape)
-    x1 = x1.reshape(-1)
-    d2k = jacrev(jacfwd(cov_fn_))(x1)
-    print(d2k.shape)
-    # TODO replace squeeze with correct dimensions
-    d2k = jnp.squeeze(d2k)
+        hessian = jax.hessian(cov_fn_single_input)(x1)
+        hessian = hessian.reshape([input_dim, input_dim])
+        return hessian
 
-    return d2k
+    if len(X1.shape) == 1:
+        input_dim = X1.shape[0]
+        hessian = hessian_cov_fn_wrt_single_x1x1(X1)
+        assert hessian.shape == (input_dim, input_dim)
+    else:
+        input_dim = X1.shape[1]
+        num_X1 = X1.shape[0]
+        hessian = jax.vmap(hessian_cov_fn_wrt_single_x1x1)(X1)
+        assert hessian.shape == (num_X1, input_dim, input_dim)
+    return hessian
 
 
 def hessian_cov_fn_wrt_x1x1_hard_coded(cov_fn, lengthscale, x1):
@@ -64,21 +98,3 @@ def hessian_cov_fn_wrt_x1x1_hard_coded(cov_fn, lengthscale, x1):
     l2 = jnp.diag(l2)
     d2k = l2 * cov_fn(x1, x1)
     return d2k
-
-
-# def cov_map(cov_func, xs, xs2=None, cov_args=None):
-#     """Compute a covariance matrix from a covariance function and data points.
-#     Args:
-#       cov_func: callable function, maps pairs of data points to scalars.
-#       xs: array of data points, stacked along the leading dimension.
-#     Returns:
-#       A 2d array `a` such that `a[i, j] = cov_func(xs[i], xs[j])`.
-#     """
-#     if xs2 is None:
-#         return vmap(lambda x: vmap(lambda y: cov_func(x, y, cov_args))(xs))(xs)
-#     else:
-#         return vmap(lambda x: vmap(lambda y: cov_func(x, y))(xs))(xs2).T
-
-
-# def exp_quadratic(x1, x2):
-#     return jnp.exp(-jnp.sum((x1 - x2) ** 2))
