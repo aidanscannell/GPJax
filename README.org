@@ -21,6 +21,7 @@ which is the only model (partly) implemented.
 - [] Implement gpjax.models.GPBase.predict_jacobian_y_wrt_Xnew
   - [] Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
 
+- [] Use chex.dataclass for testing with variants e.g. jitted vs non-jitted
 - [] Tests for single output conditionals
 - [] Tests for gpjax.models.SVGP.predict_f
 - [] Tests for gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew
