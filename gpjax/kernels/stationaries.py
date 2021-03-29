@@ -45,8 +45,6 @@ class Stationary(Kernel):
             self.lengthscales = lengthscales
         else:
             self.lengthscales = jnp.array(lengthscales)
-        print(type(self.variance))
-        print(type(self.lengthscales))
         self.lengthscales = objax.TrainVar(self.lengthscales)
         self.variance = objax.TrainVar(self.variance)
         self._validate_ard_active_dims(self.lengthscales)
@@ -97,6 +95,7 @@ class IsotropicStationary(Stationary):
         if hasattr(self, "K_r"):
             # Clipping around the (single) float precision which is ~1e-45.
             r = jnp.sqrt(jnp.maximum(r2, 1e-36))
+            # r = jnp.sqrt(r2)
             return self.K_r(r)  # pylint: disable=no-member
         raise NotImplementedError
 
@@ -145,6 +144,8 @@ class SquaredExponential(IsotropicStationary):
     """
 
     def K_r2(self, r2: jnp.ndarray) -> jnp.ndarray:
+        # print('inside K_r2')
+        # print(r2)
         return self.variance.value * jnp.exp(-0.5 * r2)
 
 

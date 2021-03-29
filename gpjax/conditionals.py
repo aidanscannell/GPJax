@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from jax import numpy as jnp
-from jax import scipy as sp
+from jax import scipy as jsp
 
 from gpjax.covariances import Kuf, Kuu
 from gpjax.kernels import Kernel
@@ -21,7 +21,7 @@ def conditional(
     jitter: jnp.float64 = 1e-4,
 ):
     # Kmm = Kuu(X, kernel)
-    # # Kmm += jitter * jnp.eye(Kmm.shape[0])
+    # Kmm += jitter * jnp.eye(Kmm.shape[0])
     # Kmn = kernel.K(X, Xnew)
     # if full_cov:
     #     Knn = kernel.K(Xnew, Xnew)
@@ -41,8 +41,9 @@ def conditional(
     # Knn = kernel.K(Xnew, full_cov=full_cov)
     if full_cov:
         Knn = kernel.K(Xnew)
+        Knn += jitter * jnp.eye(Knn.shape[0])
     else:
-        Knn = kernel.K_diag(Xnew)
+        Knn = kernel.K_diag(Xnew) + jitter
 
     # TODO handle multioutput GPs
     if len(q_sqrt.shape)== 3 and q_sqrt.shape[0] == 1:
@@ -59,10 +60,10 @@ def conditional(
 def base_conditional(
     Kmn, Kmm, Knn, f, full_cov=False, q_sqrt=None, white=False
 ):
-    # Lm = sp.linalg.cho_factor(Kmm)
+    # Lm = jsp.linalg.cho_factor(Kmm)
     # print("Kmm")
     # print(Kmm.shape)
-    Lm = sp.linalg.cholesky(Kmm, lower=True)
+    Lm = jsp.linalg.cholesky(Kmm, lower=True)
     return base_conditional_with_lm(
         Kmn=Kmn,
         Lm=Lm,
@@ -78,9 +79,9 @@ def base_conditional(
 def base_conditional_with_lm(
     Kmn, Lm, Knn, f, full_cov=False, q_sqrt=None, white=False
 ):
-    # c, low = sp.linalg.cho_factor(Lm)
-    # A = sp.linalg.cho_solve(Lm, Kmn)
-    A = sp.linalg.solve_triangular(Lm, Kmn, lower=True)
+    # c, low = jsp.linalg.cho_factor(Lm)
+    # A = jsp.linalg.cho_solve(Lm, Kmn)
+    A = jsp.linalg.solve_triangular(Lm, Kmn, lower=True)
 
     # compute the covariance due to the conditioning
     if full_cov:
@@ -103,10 +104,10 @@ def base_conditional_with_lm(
     # print(f.shape)
     # another backsubstitution in the unwhitened case
     # if not white:
-    #     A = sp.linalg.solve_triangular(Lm.T, A, lower=False)
+    #     A = jsp.linalg.solve_triangular(Lm.T, A, lower=False)
 
     # construct the conditional mean
-    # Amean = sp.linalg.solve_triangular(Lm.T, f, lower=False)
+    # Amean = jsp.linalg.solve_triangular(Lm.T, f, lower=False)
     # print('Amean')
     # print(Amean.shape)
     # print(A.shape)
@@ -116,11 +117,11 @@ def base_conditional_with_lm(
     if q_sqrt is not None:
         q_sqrt_dims = len(q_sqrt.shape)
         if q_sqrt_dims == 2:
-            # LTA = sp.linalg.solve_triangular(Lm, q_sqrt)
+            # LTA = jsp.linalg.solve_triangular(Lm, q_sqrt)
             # print("LTA")
             # print(q_sqrt.shape)
             # print(A.shape)
-            # B = sp.linalg.cho_solve(Lm, q_sqrt)
+            # B = jsp.linalg.cho_solve(Lm, q_sqrt)
             # print(LTA.shape)
             # LTALTA = A.T @ LTA
             # print(LTALTA.shape)

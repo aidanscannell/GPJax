@@ -5,7 +5,7 @@ from jax import numpy as jnp
 from jax.config import config
 
 from gpjax.custom_types import InputData
-from gpjax.kernels import Kernel
+from gpjax.kernels import RBF, Kernel
 
 config.update("jax_enable_x64", True)
 
@@ -85,16 +85,30 @@ def hessian_cov_fn_wrt_X1X1(cov_fn, X1: InputData) -> jnp.ndarray:
     return hessian
 
 
-def hessian_cov_fn_wrt_x1x1_hard_coded(cov_fn, lengthscale, x1):
-    """Calculate derivative of cov_fn(x1, x1) wrt to x1
+def hessian_rbf_cov_fn_wrt_X1X1(
+    kernel: RBF, X1: InputData
+) -> jnp.ndarray:
+    """Calculate derivative of kernel.K(X1, X1) wrt to X1
 
-    :param cov_fn: covariance function with signature cov_fn(x1, x1)
-    :param x1: [1, input_dim]
+    :param kernel: an instance of an RBF kernel
+    :param X1: [num_X1, input_dim]
     """
-    # lengthscale = jnp.array([0.4, 0.4])
-    # l2 = lengthscale ** 2
-    l2 = lengthscale.value ** 2
-    # l2 = kernel.lengthscale**2
-    l2 = jnp.diag(l2)
-    d2k = l2 * cov_fn(x1, x1)
-    return d2k
+    def hessian_rbf_cov_fn_wrt_single_x1x1(x1: InputData):
+        x1 = x1.reshape(1, -1)
+        # l2 = kernel.lengthscales.value ** 2
+        # l2 = - kernel.lengthscales.value
+        l2 = kernel.lengthscales.value ** 2
+        l2 = jnp.diag(l2)
+        hessian = l2 * kernel.K(x1, x1)
+        return hessian
+
+    if len(X1.shape) == 1:
+        input_dim = X1.shape[0]
+        hessian = hessian_rbf_cov_fn_wrt_single_x1x1(X1)
+        assert hessian.shape == (input_dim, input_dim)
+    else:
+        input_dim = X1.shape[1]
+        num_X1 = X1.shape[0]
+        hessian = jax.vmap(hessian_rbf_cov_fn_wrt_single_x1x1)(X1)
+        assert hessian.shape == (num_X1, input_dim, input_dim)
+    return hessian

@@ -5,7 +5,7 @@ from gpjax.conditionals import conditional
 from gpjax.custom_types import InputData, MeanAndVariance
 from gpjax.kernels import Kernel
 from gpjax.mean_functions import MeanFunction
-from gpjax.models import GPBase
+from gpjax.models import GPModel
 
 jax.config.update("jax_enable_x64", True)
 
@@ -14,7 +14,7 @@ Likelihood = None
 InducingVariable = None
 
 
-class SVGP(GPBase):
+class SVGP(GPModel):
     def __init__(
         self,
         kernel: Kernel,
