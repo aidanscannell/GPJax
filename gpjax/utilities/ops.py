@@ -28,6 +28,16 @@ EllipsisType = type(...)
 #     return jnp.reshape(flatres, shape)
 
 
+def scaled_square_distance(
+    X: jnp.ndarray, X2: jnp.ndarray, lengthscales: jnp.ndarray
+) -> jnp.ndarray:
+    if X is not None:
+        X = X / lengthscales
+    if X2 is not None:
+        X2 = X2 / lengthscales
+    return square_distance(X, X2)
+
+
 def square_distance(X: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
     """
     Returns ||X - X2ᵀ||²
