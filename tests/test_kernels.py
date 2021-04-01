@@ -1,5 +1,4 @@
 import chex
-import haiku as hk
 import jax
 import pytest
 from absl.testing import parameterized
