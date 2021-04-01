@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "GPJax"
 version = "0.1.0"
-description = "Minimal Gaussian process library in JAX using Objax for managing state."
+description = "Minimal Gaussian process library in JAX with custom state management."
 authors = ["Aidan Scannell <scannell.aidan@gmail.com>"]
 
 [tool.poetry.dependencies]
@@ -15,8 +15,7 @@ matplotlib = "^3.3.2"
 scipy = "1.*"
 python-language-server = "^0.36.1"
 jupyter = "^1.0.0"
-# dm-haiku = "^0.0.2"
-objax = "^1.2.0"
+chex = "^0.0.6"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
