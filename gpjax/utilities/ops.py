@@ -1,71 +1,16 @@
 #!/usr/bin/env python3
 from typing import List, Union
 
+import jax
 import numpy as np
 from jax import numpy as jnp
 
 EllipsisType = type(...)
 
 
-# def broadcasting_elementwise(
-#     op, a: jnp.ndarray, b: jnp.ndarray
-# ) -> jnp.ndarray:
-#     """
-#     Apply binary operation `op` to every pair in tensors `a` and `b`.
-#     :param op: binary operator on tensors, e.g. jnp.add, jnp.substract
-#     :param a: jnp.ndarray, shape [n_1, ..., n_a]
-#     :param b: jnp.ndarray, shape [m_1, ..., m_b]
-#     :return: jnp.ndarray, shape [n_1, ..., n_a, m_1, ..., m_b]
-#     """
-#     flatres = op(jnp.reshape(a, [-1, 1]), jnp.reshape(b, [1, -1]))
-#     print("shape")
-#     print(jnp.shape(a))
-#     print(a.shape)
-#     print(flatres.shape)
-#     # shape = jnp.concatenate([jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))])
-#     shape = [jnp.array(jnp.shape(a)), jnp.array(jnp.shape(b))]
-#     print(shape)
-#     return jnp.reshape(flatres, shape)
-
-
-def scaled_square_distance(
-    X: jnp.ndarray, X2: jnp.ndarray, lengthscales: jnp.ndarray
-) -> jnp.ndarray:
-    if X is not None:
-        X = X / lengthscales
-    if X2 is not None:
-        X2 = X2 / lengthscales
-    return square_distance(X, X2)
-
-
-def square_distance(X: jnp.ndarray, X2: jnp.ndarray) -> jnp.ndarray:
-    """
-    Returns ||X - X2ᵀ||²
-    Due to the implementation and floating-point imprecision, the
-    result may actually be very slightly negative for entries very
-    close to each other.
-    This function can deal with leading dimensions in X and X2.
-    In the sample case, where X and X2 are both 2 dimensional,
-    for example, X is [N, D] and X2 is [M, D], then a tensor of shape
-    [N, M] is returned. If X is [N1, S1, D] and X2 is [N2, S2, D]
-    then the output will be [N1, S1, N2, S2].
-    """
-    if X2 is None:
-        Xs = jnp.sum(jnp.square(X), axis=-1, keepdims=True)
-        XT = leading_transpose(X, perm=[..., -1, -2])
-        dist = -2 * jnp.matmul(X, XT)
-        XsT = leading_transpose(Xs, perm=[..., -1, -2])
-        conj = jnp.conjugate(XsT)
-        dist += Xs + conj
-        return dist
-    Xs = jnp.sum(jnp.square(X), axis=-1, keepdims=True)
-    X2s = jnp.sum(jnp.square(X2), axis=-1, keepdims=True)
-    X2sT = leading_transpose(X2s, perm=[..., -1, -2])
-    X2T = leading_transpose(X2, perm=[..., -1, -2])
-    dist = -2 * jnp.matmul(X, X2T)
-    dist2 = Xs + X2sT  # broadcast
-    dist += dist2
-    return dist
+@jax.partial(jnp.vectorize, signature="(m)->(m,m)")
+def batched_diag(K: jnp.DeviceArray) -> jnp.DeviceArray:
+    return jnp.diag(K)
 
 
 def leading_transpose(
@@ -110,18 +55,3 @@ def leading_transpose(
     leading_dims = np.arange(rank - len(perm) + 1)
     perm = np.concatenate([perm_tf[:idx], leading_dims, perm_tf[idx + 1 :]], 0)
     return jnp.transpose(tensor, perm)
-
-
-def difference_matrix(X, X2=None):
-    """
-    Returns (X - X2ᵀ)
-    This function can deal with leading dimensions in X and X2.
-    For example, If X has shape [M, D] and X2 has shape [N, D],
-    the output will have shape [M, N, D]. If X has shape [I, J, M, D]
-    and X2 has shape [I, J, N, D], the output will have shape
-    [I, J, M, N, D].
-    """
-    if X2 is None:
-        X2 = X
-    diff = jnp.expand_dims(X, -2) - jnp.expand_dims(X2, -3)
-    return diff
