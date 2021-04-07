@@ -4,25 +4,145 @@
 I have spent a lot of time using [[https://github.com/GPflow/GPflow][GPflow]] and I like how they implement their GP library, in particular,
 their focus on variational inference and how they implement GP conditionals.
 As such, this package takes a similar approach but offers the benefits (and ease) of having [[https://github.com/google/jax][JAX]] under the hood.
-=GPJax= uses [[https://github.com/google/objax][Objax]] for state management.
 
-This package is a work in progress and functionality will realistically be implemented when I need it for my research.
-Currently my work focuses on making predictions with Sparse Variational Gaussian Processes,
-which is the only model (partly) implemented.
+=GPJax= keeps in the spirit of JAX (to provide an extensible system for composable function transformations)
+by implementing its features as pure functions.
+However, the number of components in Gaussian process methods (compositions of mean functions, kernels,
+variational parameters etc) makes a purely functional approach less appealing.
+I have experimented using both [[https://github.com/deepmind/dm-haiku][haiku]] and [[https://github.com/google/objax][objax]] for state management and neither of them provided a level of abstraction
+I was happy with.
+As a result, =GPJax= now implements a simple approach to state management.
+
+This package is a work in progress and functionality will be implemented when I need it for my research.
+If you like what I'm doing or have any recommendations then please reach out, or even better, get involved!
+
+** State Management
+1. Each =gpjax.Module= (=MeanFunction=, =Kernel=, =GPModel=) implements an =init_params()= method that returns a dictionary of the parameters associated with the object, e.g. =kernel_param_dict = kernel.init_params()=.
+   + ={'lengthscales': DeviceArray([1.], dtype=float64), 'variance': DeviceArray([1.], dtype=float64)}=
+2. These classes provide wrappers around more general functions that accepts the dictionary of parameters as the first argument,
+   + =gpjax.models.SVGP.predict_f(params, Xnew,...)=)
+   + =gpjax.kernels.SquaredExponential.k(params, x1, x2)=
+   + =gpjax.models.SVGP.predict_f(params, Xnew,...)=
+3. These classes do not  provide wrappers around more general functions that accepts the
+
+*** Example
+Let's take a look at how state is managed in an example using a kernel.
+#+begin_src python
+import jax
+from gpjax.kernels import SquaredExponential
+
+key = jax.random.PRNGKey(0)
+
+# create some dummy data
+input_dim = 5
+num_x1 = 100
+num_x2 = 30
+x1 = jax.random.uniform(key, shape=(num_x1, input_dim))
+x2 = jax.random.uniform(key, shape=(num_x2, input_dim))
+
+# create an instance of the SE kernel
+kernel = SquaredExponential()
+params = kernel.init_params()  # get the dictionary of parameters associated with kernel
+K = kernel(params, x1, x2)  # call the kernel with the dictionary of parameters
+#+end_src
+Importantly, passing the kernel's hyperparameters (lengthscales and variances in this case) as in argument
+gives us a pure function which we can easily compose with any JAX transformation.
+The functional approach of JAX allows us to easily obtain the derivative of our kernel w.r.t it's hyperparameters,
+#+begin_src python
+# create a function that returns the derivative of the w.r.t params (its first argument)
+jac_kernel_wrt_params_fn = jax.jacfwd(kernel, argnums=0)
+# evaluate the derivative of the kernel wrt its hyperparameters
+jac_kernel_wrt_params = jac_kernel_wrt_params_fn(params, x1, x2)
+print(jac_kernel_wrt_params["lengthscales"].shape)
+print(jac_kernel_wrt_params["variance"].shape)
+#+end_src
+=(100, 30, 1)=
+=(100, 30, 1)=
+
+** Install GPJax
+This is a Python package that should be installed into a virtual environment.
+Start by cloning this repo from Github:
+#+begin_src shell
+git clone https://github.com/aidanscannell/GPJax.git
+#+end_src
+The package can then be installed into a virtual environment by adding it as a local dependency.
+*** Install with Poetry
+=GPJax='s dependencies and packaging are being managed with [[https://python-poetry.org/docs/][Poetry]], instead of other tools such as Pipenv.
+To install =GPJax= into an existing poetry environment add it as a dependency under
+=[tool.poetry.dependencies]= (in the [[./pyproject.toml]] configuration file) with the following line:
+#+begin_src toml
+gpjax = {path = "/path/to/gpjax"}
+#+end_src
+If you want to develop the =gpjax= codebase then set =develop=true=:
+#+begin_src toml
+gpjax = {path = "/path/to/gpjax", develop=true}
+#+end_src
+The dependencies in a [[./pyproject.toml]] file are resolved and installed with:
+#+begin_src shell
+poetry install
+#+end_src
+If you do not require the development packages then you can opt to install without them,
+#+begin_src shell
+poetry install --no-dev
+#+end_src
+*** Install with pip
+Create a new virtualenv and activate it, for example,
+#+BEGIN_SRC shell
+mkvirtualenv --python=python3 gpjax-env
+workon gpjax-env
+#+END_SRC
+cd into the root of this package and install it and its dependencies with,
+#+BEGIN_SRC shell
+pip install .
+#+END_SRC
+If you want to develop the =gpjax= codebase then install it in "editable" or "develop" mode with:
+#+BEGIN_SRC shell
+pip install -e .
+#+END_SRC
 
 * TODOs
-- [] Implement SVGP lower bound 
+- [] Implement mean functions
+  + [X] Implement zero
+  + [X] Implement constant
+- [] Implement kernels
+  + [X] Implement base
+  + [X] Implement squared exponential
+  + [X] Implement multi output
+    - [X] Implement separate independent
+    - [] Implement shared independent
+    - [] Implement LinearCoregionalization
+- [] Implement conditionals
+  + [] Implement single-output conditionals
+  + [] Implement multi-output conditionals
 - [] Implement likelihoods
-  - [] Implement base likelihood
-  - [] Implement Gaussian likelihood
+  - [X] Implement base likelihood
+  - [X] Implement Gaussian likelihood
   - [] Implement Bernoulli likelihood
   - [] Implement Softmax likelihood
-- [] Implement multi-output conditionals
-- [] Implement gpjax.models.GPBase.predict_jacobian_y_wrt_Xnew
-  - [] Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
+- [] Implement gpjax.models
+  + [X] Implement gpjax.models.GPModel
+    - [X] predict_f
+    - [X] predict_y
+  + [] Implement gpjax.models.GPR
+  + [] Implement gpjax.models.SVGP
+    - [X] predict_f
+    - [X] init_variational_parameters
+    - [] KL
+  + [] Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
+- [] Implement SVGP lower bound
 
-- [] Use chex.dataclass for testing with variants e.g. jitted vs non-jitted
-- [] Tests for single output conditionals
-- [] Tests for gpjax.models.SVGP.predict_f
-- [] Tests for gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew
-- [] Tests for gpjax.models.GPBase.predict_y
+- [] Tests for mean functions
+  + [X] Tests for zero
+  + [X] Tests for constant
+- [] Tests for kernels
+  + [X] Tests for squared exponential
+  + [X] Tests for separate independent
+- [] Tests for conditionals
+  + [] Tests for single output conditionals
+  + [] Tests for multi output conditionals
+- [] Tests for likelihoods
+  + [] Tests for gaussian likelihood
+  + [] Tests for bernoulli likelihood
+  + [] Tests for softmax likelihood
+- [] Tests for gpjax.models.SVGP
+  + [] Tests for gpjax.models.SVGP.predict_f
