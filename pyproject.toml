@@ -7,10 +7,14 @@ authors = ["Aidan Scannell <scannell.aidan@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.8"
 numpy = "^1.19.4"
+# jax = "^0.2.5"
+jax = "0.2.11"
 jaxlib = "^0.1.59"
 matplotlib = "^3.3.2"
 jupyter = "^1.0.0"
 chex = "^0.0.6"
+tensorflow-probability = "^0.12.1"
+# tfp-nightly = "^0.13.0-alpha.20210331"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
