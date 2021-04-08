@@ -1,0 +1,49 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Python package
+
+on:
+  push:
+    branches: [ custom_state_management ]
+  pull_request:
+    branches: [ custom_state_management ]
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9]
+        poetry-version: [1.1.4]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v2.1.0
+      with:
+        poetry-version: ${{ matrix.poetry-version }}
+    - name: Cache Poetry virtualenv
+      uses: actions/cache@v2.1.4
+      id: cache
+      with:
+        path: ~/.virtualenvs
+        key: poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+            poetry-${{ hashFiles('**/poetry.lock') }}
+    - name: Set Poetry config
+      run: |
+          poetry config virtualenvs.in-project false
+          poetry config virtualenvs.path ~/.virtualenvs
+    - name: Install Dependencies
+      run: poetry install
+      if: steps.cache.outputs.cache-hit != 'true'
+    - name: Test with pytest
+      run: |
+        poetry run pytest
