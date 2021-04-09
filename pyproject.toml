@@ -5,7 +5,8 @@ description = "Minimal Gaussian process library in JAX with custom state managem
 authors = ["Aidan Scannell <scannell.aidan@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+# python = "^3.7"
+python = ">=3.6,<3.10"  
 numpy = "^1.19.4"
 # jax = "^0.2.5"
 jax = "0.2.11"
