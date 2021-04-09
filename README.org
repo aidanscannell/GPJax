@@ -1,4 +1,6 @@
 * GPJax: Gaussian processes in JAX
+
+[[https://github.com/aidanscannell/GPJax/actions/workflows/tests.yml/badge.svg][Example workflow]]
   
 =GPJax= is a minimal package for implementing Gaussian process models in Python using [[https://github.com/google/jax][JAX]].
 I have spent a lot of time using [[https://github.com/GPflow/GPflow][GPflow]] and I like how they implement their GP library, in particular,
@@ -45,9 +47,10 @@ kernel = SquaredExponential()
 params = kernel.init_params()  # get the dictionary of parameters associated with kernel
 K = kernel(params, x1, x2)  # call the kernel with the dictionary of parameters
 #+end_src
-Importantly, passing the kernel's hyperparameters (lengthscales and variances in this case) as in argument
-gives us a pure function which we can easily compose with any JAX transformation.
-The functional approach of JAX allows us to easily obtain the derivative of our kernel w.r.t it's hyperparameters,
+Importantly, this is a pure function because the kernel's hyperparameters (lengthscales and variances in this case)
+are passed as an argument. This means that we can easily compose it with any JAX transformation,
+for example, =jax.jit= and =jax.jacfwd=.
+Let's calculate the derivative of our kernel w.r.t it's hyperparameters using =jax.jacfwd=,
 #+begin_src python
 # create a function that returns the derivative of the w.r.t params (its first argument)
 jac_kernel_wrt_params_fn = jax.jacfwd(kernel, argnums=0)
@@ -128,8 +131,7 @@ pip install -e .
     - [X] predict_f
     - [X] init_variational_parameters
     - [] KL
-  + [] Move gpjax.models.GPBase.predict_jacobian_f_wrt_Xnew to separate function and use for predict_jacobian_y_wrt_Xnew as well
-- [] Implement SVGP lower bound
+    - [] lower bound
 
 - [] Tests for mean functions
   + [X] Tests for zero
