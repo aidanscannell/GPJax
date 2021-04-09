@@ -18,13 +18,27 @@ This package is a work in progress and functionality will be implemented when I 
 If you like what I'm doing or have any recommendations then please reach out, or even better, get involved!
 
 ** State Management
-1. Each =gpjax.Module= (=MeanFunction=, =Kernel=, =GPModel=) implements an =init_params()= method that returns a dictionary of the parameters associated with the object, e.g. =kernel_param_dict = kernel.init_params()=.
-   + ={'lengthscales': DeviceArray([1.], dtype=float64), 'variance': DeviceArray([1.], dtype=float64)}=
-2. These classes provide wrappers around more general functions that accepts the dictionary of parameters as the first argument,
+1. =gpjax= relies upon its =gpjax.Module= class which all constructs with trainable state must inherit e.g. =MeanFunction=, =Kernel=, =GPModel=.
+2. Each =gpjax.Module= subclass must implement an =init_params()= method that returns a dictionary of the parameters associated with the object, e.g. for a stationary kernel =kernel_param_dict = kernel.init_params()= returns ={'lengthscales': DeviceArray([1.], dtype=float64), 'variance': DeviceArray([1.], dtype=float64)}=.
+3. JAX's functionality depends upon pure functions and GPJax implements all functionality as standalone functions; classes then call the relevant functions.
+   + For example, the squared exponential kernel class is really just a convenience class for storing its associated parameters and providing a wrapper around its associated function. This is handy because it means that we can either create an instance of the kernel class and call it, or we can call the standalone function,
+    #+begin_src python
+    kernel = SquaredExponential()
+    params = kernel.init_params()  # get the dictionary of parameters associated with kernel
+
+    K_object = kernel(
+        params, X1, X2
+    )  # call the kernel object with the dictionary of parameters
+
+    K_func = squared_exponential_cov_fn(
+        params, X1, X2
+    )  # call the standalone function with the dictionary of parameters
+    assert K_object == K_func
+    #+end_src
+4. In general, classes provide wrappers around functions that accept a dictionary of parameters as the first argument,
    + =gpjax.models.SVGP.predict_f(params, Xnew,...)=)
-   + =gpjax.kernels.SquaredExponential.k(params, x1, x2)=
+   + =gpjax.kernels.SquaredExponential.K(params, X1, X2)=
    + =gpjax.models.SVGP.predict_f(params, Xnew,...)=
-3. These classes do not  provide wrappers around more general functions that accepts the
 
 *** Example
 Let's take a look at how state is managed in an example using a kernel.
@@ -38,18 +52,18 @@ key = jax.random.PRNGKey(0)
 input_dim = 5
 num_x1 = 100
 num_x2 = 30
-x1 = jax.random.uniform(key, shape=(num_x1, input_dim))
-x2 = jax.random.uniform(key, shape=(num_x2, input_dim))
+X1 = jax.random.uniform(key, shape=(num_x1, input_dim))
+X2 = jax.random.uniform(key, shape=(num_x2, input_dim))
 
 # create an instance of the SE kernel
 kernel = SquaredExponential()
 params = kernel.init_params()  # get the dictionary of parameters associated with kernel
-K = kernel(params, x1, x2)  # call the kernel with the dictionary of parameters
+K = kernel(params, X1, X2)  # call the kernel with the dictionary of parameters
 #+end_src
 Importantly, this is a pure function because the kernel's hyperparameters (lengthscales and variances in this case)
 are passed as an argument. This means that we can easily compose it with any JAX transformation,
 for example, =jax.jit= and =jax.jacfwd=.
-Let's calculate the derivative of our kernel w.r.t it's hyperparameters using =jax.jacfwd=,
+We can calculate the derivative of our kernel w.r.t it's hyperparameters using =jax.jacfwd=,
 #+begin_src python
 # create a function that returns the derivative of the w.r.t params (its first argument)
 jac_kernel_wrt_params_fn = jax.jacfwd(kernel, argnums=0)
