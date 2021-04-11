@@ -5,14 +5,6 @@ import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 
 
-def default_float():
-    return jnp.float64
-
-
-def to_default_float(value):
-    return default_float()(value)
-
-
 @dataclass(frozen=True)
 class Config:
     """Immutable object for storing global GPJax settings
@@ -31,3 +23,16 @@ class Config:
     jitter: float = 1e-6
     positive_bijector: tfp.bijectors.Bijector = tfp.bijectors.Softplus
     positive_minimum: float = 0.0
+
+
+def default_float():
+    # return jnp.float64
+    return Config.float
+
+
+def default_jitter():
+    return Config.jitter
+
+
+def to_default_float(value):
+    return default_float()(value)
