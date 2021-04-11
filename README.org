@@ -128,8 +128,10 @@ pip install -e .
     - [] Implement shared independent
     - [] Implement LinearCoregionalization
 - [] Implement conditionals
-  + [] Implement single-output conditionals
-  + [] Implement multi-output conditionals
+  + [X] Implement single-output conditionals
+  + [X] Implement multi-output conditionals
+  + [X] Implement dispatch for single/multioutput
+  + [] Implement dispatch for different inducing variables
 - [] Implement likelihoods
   - [X] Implement base likelihood
   - [X] Implement Gaussian likelihood
@@ -160,4 +162,4 @@ pip install -e .
   + [] Tests for bernoulli likelihood
   + [] Tests for softmax likelihood
 - [] Tests for gpjax.models.SVGP
-  + [] Tests for gpjax.models.SVGP.predict_f
+  + [X] Tests for gpjax.models.SVGP.predict_f
