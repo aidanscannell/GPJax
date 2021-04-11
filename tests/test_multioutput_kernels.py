@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 import chex
 import jax
-import pytest
-from gpjax.config import default_float
 from absl.testing import parameterized
+from gpjax.config import default_float
+from gpjax.kernels import SeparateIndependent, SquaredExponential
 from gpjax.utilities.ops import leading_transpose
 from jax import numpy as jnp
-
-from gpjax.kernels import SeparateIndependent, SquaredExponential
 
 jax.config.update("jax_enable_x64", True)
 
