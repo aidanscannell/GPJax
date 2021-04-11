@@ -1,12 +1,89 @@
 #!/usr/bin/env python3
 import abc
-import jax
-from gpjax.kernels import Kernel, Combination
-from gpjax.utilities.ops import leading_transpose, batched_diag
-from gpjax.custom_types import InputData
 from typing import List, Optional, Union
-from jax import lax
+
+import jax
 import jax.numpy as jnp
+from gpjax.custom_types import Input1, Input2, MultiOutputCovariance
+from gpjax.kernels import Combination, Kernel
+from gpjax.kernels.base import batched_covariance_map
+from gpjax.utilities.ops import batched_diag, leading_transpose
+
+
+# def separate_independent_cov_fn(
+#     params: dict,
+#     kernels: List[Kernel],
+#     X1: Input1,
+#     X2: Input2,
+#     full_output_cov: Optional[bool] = True,
+# ) -> MultiOutputCovariance:
+#     Kxxs = jax.tree_multimap(
+#         lambda kern, params_: kern(params_, X1, X2), kernels, params
+#     )
+#     if full_output_cov:
+#         Kxxs = jnp.stack(Kxxs, axis=-1)  # [..., N1, N2, P]
+#         diag = batched_diag(Kxxs)  # [..., N1, N2, P, P]
+#         return leading_transpose(diag, [..., -4, -2, -3, -1])  # [..., N1, P, N2, P]
+#     else:
+#         # TODO haven't checks this is stacked on right axis
+#         return jnp.stack(Kxxs, axis=-3)  # [..., P, N1, N2]
+
+
+def separate_independent_cov_fn(
+    params: dict,
+    kernels: List[Kernel],
+    X1: Input1,
+    X2: Input2 = None,
+    full_cov: Optional[bool] = True,
+    full_output_cov: Optional[bool] = True,
+) -> MultiOutputCovariance:
+    Kxxs = jax.tree_multimap(
+        lambda kern, params_: kern(params_, X1, X2, full_cov=full_cov), kernels, params
+    )
+    Kxxs = jnp.stack(Kxxs, axis=-1)  # [..., N1, N2, P] or [..., N1, P]
+    if full_output_cov:
+        diag = batched_diag(Kxxs)  # [..., N1, N2, P, P] or # [..., N1, P, P]
+        if full_cov:
+            return leading_transpose(diag, [..., -2, -3, -1])  # [..., N1, P, N2, P]
+        return diag
+    else:
+        # TODO haven't checks this is stacked on right axis
+        if full_cov:
+            return leading_transpose(Kxxs, [..., -1, -3, -2])  # [..., P, N1, N2]
+        else:
+            return Kxxs  # [..., N, P, P]
+
+
+# def multi_output_covariance_map(params: dict, kernels: List[Kernel], X1, X2):
+#     Kxxs = jax.tree_multimap(
+#         lambda kern1, params1: jnp.stack(
+#             jax.tree_multimap(
+#                 lambda kern2, params2: batched_covariance_map(p_, k, X1, X2),
+#                 kernels,
+#                 params,
+#             ),
+#             axis=-1,
+#         ),
+#         kernels,
+#         params,
+#         # lambda kern, params_: kern(params_, X1, X2, full_cov=full_cov), kernels, params
+#     )
+#     # Kxxs = jax.tree_multimap(
+#     #     jax.tree_multimap(
+#     #         lambda kernel, params_: jax.vmap(
+#     #             lambda xi: jax.vmap(lambda xj: kernel(params_, xi, xj))(X2)
+#     #         )(X1),
+#     #         kernels,
+#     #         params,
+#     #     ),
+#     #     kernels,
+#     #     params,
+#     #     # lambda kern, params_: kern(params_, X1, X2, full_cov=full_cov), kernels, params
+#     # )
+#     Kxxs = jnp.stack(Kxxs, axis=-1)  # [..., N1, N2, P] or [..., N1, P]
+#     print("hiaidan")
+#     print(Kxxs.shape)
+#     return Kxxs
 
 
 class MultioutputKernel(Kernel):
@@ -30,10 +107,10 @@ class MultioutputKernel(Kernel):
     def K(
         params: dict,
         kernels: Union[List[Kernel], Kernel],
-        X1: InputData,
-        X2: InputData = None,
+        X1: Input1,
+        X2: Input2 = None,
         full_output_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
+    ) -> MultiOutputCovariance:
         """
         Returns the correlation of f(X1) and f(X2), where f(.) can be multi-dimensional.
         :param X1: data matrix, [N1, input_dim]
@@ -50,9 +127,9 @@ class MultioutputKernel(Kernel):
     def K_diag(
         params: dict,
         kernels: Union[List[Kernel], Kernel],
-        X: InputData,
+        X: Input1,
         full_output_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
+    ) -> MultiOutputCovariance:
         """
         Returns the correlation of f(X) and f(X), where f(.) can be multi-dimensional.
         :param X: data matrix, [N, input_dim]
@@ -66,11 +143,11 @@ class MultioutputKernel(Kernel):
     def __call__(
         self,
         params: dict,
-        X1: InputData,
-        X2: Optional[InputData] = None,
-        full_cov: Optional[bool] = False,
-        full_output_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
+        X1: Input1,
+        X2: Input2 = None,
+        full_cov: Optional[bool] = True,
+        full_output_cov: Optional[bool] = False,
+    ) -> MultiOutputCovariance:
         # TODO implement sliced
         if not full_cov and X2 is not None:
             raise ValueError(
@@ -81,6 +158,7 @@ class MultioutputKernel(Kernel):
                 params, self.kernels, X1, full_output_cov=full_output_cov
             )
         return self.K(params, self.kernels, X1, X2, full_output_cov=full_output_cov)
+        # return multi_output_covariance_map(params, self.kernels, X1, X2)
 
 
 class SeparateIndependent(MultioutputKernel, Combination):
@@ -89,48 +167,26 @@ class SeparateIndependent(MultioutputKernel, Combination):
     def __init__(self, kernels: List[Kernel], name: Optional[str] = None):
         super().__init__(kernels=kernels, name=name)
 
-    def k(
-        self,
-        params: dict,
-        x1: InputData,
-        x2: Optional[InputData] = None,
-        full_output_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
-        raise NotImplementedError
-
     @staticmethod
     def K(
         params: dict,
         kernels: Union[List[Kernel], Kernel],
-        X1: InputData,
-        X2: Optional[InputData] = None,
-        full_output_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
-        Kxxs = jax.tree_multimap(
-            lambda kern, params_: kern(params_, X1, X2), kernels, params
+        X1: Input1,
+        X2: Input2 = None,
+        full_output_cov: Optional[bool] = False,
+    ) -> MultiOutputCovariance:
+        return separate_independent_cov_fn(
+            params, kernels, X1, X2, full_cov=True, full_output_cov=full_output_cov
         )
-        if full_output_cov:
-            Kxxs = jnp.stack(Kxxs, axis=-1)  # [N1, N2, P]
-            diag = batched_diag(Kxxs)
-            return leading_transpose(diag, [..., -4, -2, -3, -1])  # [..., N1, P, N2, P]
-        else:
-            return jnp.stack(Kxxs, axis=0)  # [..., P, N1, N2]
+        # return separate_independent_cov_fn(params, kernels, X1, X2, full_output_cov)
 
     @staticmethod
     def K_diag(
         params: dict,
         kernels: Union[List[Kernel], Kernel],
-        X: InputData,
+        X: Input1,
         full_output_cov: Optional[bool] = False,
-    ) -> jnp.DeviceArray:
-        stacked = jnp.stack(
-            jax.tree_multimap(
-                lambda kern, params_: kern.K_diag(params_, X), kernels, params
-            ),
-            axis=-1,
-        )  # [N, P]
-        diag = batched_diag(stacked)
-        if full_output_cov:
-            return diag  # [..., N, P]
-        else:
-            return stacked  # [..., N, P, P]
+    ) -> MultiOutputCovariance:
+        return separate_independent_cov_fn(
+            params, kernels, X1=X, full_cov=False, full_output_cov=full_output_cov
+        )

@@ -1,10 +1,76 @@
 #!/usr/bin/env python3
 import abc
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 import jax
 import jax.numpy as jnp
-from gpjax.custom_types import InputData
+import tensor_annotations.jax as tjax
+from gpjax.custom_types import (
+    Covariance,
+    Input1,
+    Input2,
+    InputData,
+    InputDim,
+    SingleInput,
+)
+
+
+def kernel_decorator(
+    kern_fn: Callable[[dict, SingleInput, Optional[SingleInput]], tjax.Array1]
+) -> Callable[[dict, Input1, Input2], Covariance]:
+    """Decorator that converts a kernel function to handle all input shapes.
+
+    Given two vectors (in input space) a kernel function maps them to a real
+    number. Intuitively, it defines the similarity between the inputs.
+
+    This decorator converts a kernel function which accepts vector inputs,
+    i.e. with shape [input_dim], to handle sets of vectors, i.e. with shape
+    [N, input_dim] and returns the associated covariance matrix.
+    It can also handle batch dimensions, i.e. with shape [batch, N, input_dim].
+
+    It converts a kernel function that evaluates pairs of single inputs, i.e.
+       kern_fn : [input_dim] X [input_dim] -> []
+    to handle matrix inputs, i.e.
+       kern_fn : [N1, input_dim] X [N2, input_dim] -> [N1, N2]
+    and batched matrix inputs, i.e.
+       kern_fn : [batch, N1, input_dim] X [batch, N2, input_dim] -> [batch, N1, N2]
+
+    :param kern_fn: Callable that returns a single value given two vector inputs
+    :returns: Callable kernel function that returns a (batched) covariance matrix
+    """
+
+    def wrapper(params: dict, X1: Input1, X2: Input2 = None) -> Covariance:
+        if X2 is None:
+            X2 = X1
+        if X1.ndim > 1:
+            return batched_covariance_map(params, kern_fn, X1, X2)
+        else:
+            return kern_fn(params, X1, X2)
+
+    return wrapper
+
+
+@jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
+def batched_covariance_map(
+    params: dict,
+    kernel: Callable[[dict, Input1, Input2], Covariance],
+    X1: Input1,
+    X2: Input2 = None,
+) -> Covariance:
+    """Compute covariance matrix from a covariance function and two input vectors.
+
+    This method handles leading batch dimensions.
+
+    :param params: dictionary of required parameters for kernel
+    :param kernel: callable covariance function that maps pairs of data points to scalars.
+                    e.g. Kernel(params, x1, x2)
+    :param X1: Array of inputs [..., N1, input_dim]
+    :param X2: Optional array of inputs [..., N2, input_dim]
+    :returns: covariance matrix [..., N1, N2]
+    """
+    if X2 is not None:
+        assert X1.shape[-1] == X2.shape[-1] and X1.ndim == X2.ndim == 2
+    return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(params, xi, xj))(X2))(X1)
 
 
 class Kernel(abc.ABC):
@@ -14,10 +80,10 @@ class Kernel(abc.ABC):
     def __call__(
         self,
         params: dict,
-        X1: InputData,
-        X2: InputData = None,
+        X1: Input1,
+        X2: Input2 = None,
         full_cov: Optional[bool] = True,
-    ) -> jnp.DeviceArray:
+    ) -> Covariance:
         """Evaluate kernel between two input vectors.
 
         This method handles leading batch dimensions.
@@ -36,33 +102,29 @@ class Kernel(abc.ABC):
 
         if not full_cov:
             assert X2 is None
-            # return covariance_map(params, self.k_diag, X1)
             return self.K_diag(params, X1)
 
         else:
-            return covariance_map(params, self.k, X1, X2)
+            return self.K(params, X1, X2)
 
     @abc.abstractmethod
-    def init_params(self, *args, **kwargs) -> dict:
+    def init_params(self) -> dict:
         raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
-    def k(params: dict, x1: InputData, x2: InputData = None) -> jnp.DeviceArray:
+    def K(params: dict, X1: Input1, X2: Input2 = None) -> Covariance:
         """Evaluate kernel between two single inputs.
 
         :param params: dictionary of required parameters for kernel
-        :param x1: Single input array [input_dim]
-        :param x2: Optional single input array [input_dim]
-        :returns: covariance matrix [1]
+        :param X1: Array of inputs [..., N1, input_dim]
+        :param X2: Optional array of inputs [..., N2, input_dim]
+        :returns: covariance matrix [N1, N2]
         """
         raise NotImplementedError
 
     @staticmethod
-    def K_diag(
-        params: dict,
-        X: InputData,
-    ) -> jnp.DeviceArray:
+    def K_diag(params: dict, X: Input1) -> jnp.DeviceArray:
         """Evaluate kernel between X, i.e. K(X, X)
 
         :param params: dictionary of required parameters for kernel
@@ -91,26 +153,3 @@ class Combination(Kernel):
 
     def init_params(self) -> dict:
         return jax.tree_map(lambda kern: kern.init_params(), self.kernels)
-
-
-@jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
-def covariance_map(
-    params: dict,
-    kernel: Union[Kernel, Callable[[dict, InputData, InputData], jnp.DeviceArray]],
-    X1: InputData,
-    X2: Optional[InputData] = None,
-) -> jnp.DeviceArray:
-    """Compute covariance matrix from a covariance function and two input vectors.
-
-    This method handles leading batch dimensions.
-
-    :param params: dictionary of required parameters for kernel
-    :param kernel: callable covariance function that maps pairs of data points to scalars.
-                    e.g. Kernel(params, x1, x2)
-    :param X1: Array of inputs [..., N1, input_dim]
-    :param X2: Optional array of inputs [..., N2, input_dim]
-    :returns: covariance matrix [..., N1, N2]
-    """
-    if X2 is not None:
-        assert X1.shape[-1] == X2.shape[-1] and X1.ndim == X2.ndim == 2
-    return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(params, xi, xj))(X2))(X1)
