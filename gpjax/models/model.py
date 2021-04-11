@@ -4,26 +4,26 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
-import objax
+
 from gpjax.conditionals import base_conditional
 from gpjax.covariances import (
     hessian_cov_fn_wrt_X1X1,
     hessian_rbf_cov_fn_wrt_X1X1,
     jacobian_cov_fn_wrt_X1,
 )
-from gpjax.custom_types import InputData, MeanAndVariance
+from gpjax.custom_types import InputData, MeanAndCovariance
 from gpjax.kernels import Kernel
 from gpjax.mean_functions import MeanFunction, Zero
+from gpjax.base import Module
+from gpjax.likelihoods import Likelihood
 
 jax.config.update("jax_enable_x64", True)
 
 # create types
-Likelihood = None
 InducingVariable = None
 
 
-# class GPBase(objax.Module, abc.ABC):
-class GPModel(objax.Module, abc.ABC):
+class GPModel(Module, abc.ABC):
     def __init__(
         self,
         kernel: Kernel,
@@ -44,10 +44,11 @@ class GPModel(objax.Module, abc.ABC):
     @abc.abstractmethod
     def predict_f(
         self,
+        params: dict,
         Xnew: InputData,
         full_cov: bool = False,
         full_output_cov: bool = False,
-    ) -> MeanAndVariance:
+    ) -> MeanAndCovariance:
         """Compute mean and (co)variance of latent function at Xnew.
 
         :param Xnew: inputs with shape [num_test, input_dim]
@@ -66,180 +67,13 @@ class GPModel(objax.Module, abc.ABC):
         """
         raise NotImplementedError
 
-    def predict_jacobian_f_wrt_Xnew(
-        self,
-        Xnew: InputData,
-        full_cov: bool = False,
-        full_output_cov: bool = False,
-    ) -> MeanAndVariance:
-        """
-        This only works for single output GPs
-        TODO: implement full_cov=False functionality
-        TODO change this if GP or SVGP
-        TODO implement full_output_cov functionality
-        """
-        f = self.q_mu
-        X = self.inducing_variable
-
-        Kxx = self.kernel.K(X, X)
-        # Kxx += self.jitter * jnp.eye(Kxx.shape[0])
-        # print("Kxx")
-        # print(Kxx.shape)
-        if len(Xnew.shape) == 2:
-            num_test = Xnew.shape[0]
-            Kxx = jnp.broadcast_to(Kxx, [num_test, *Kxx.shape])
-        # print(Kxx.shape)
-        # print(type(Kxx))
-        dKdx1 = jacobian_cov_fn_wrt_X1(self.kernel.K, Xnew, X)
-        # print("dKdx1")
-        # print(dKdx1.shape)
-        # print(dKdx1)
-        # print(type(dKdx1))
-        # d2K = hessian_cov_fn_wrt_x1x1(kernel.K, Xnew)
-        # TODO cheating here - only works for RBF kernel
-        # lengthscale = kernel.lengthscales.value
-        # lengthscale = self.kernel.lengthscales
-        # d2K = hessian_cov_fn_wrt_x1x1_hard_coded(
-        #     self.kernel.K, self.kernel.lengthscales, Xnew
-        # )
-
-        # def hessian_kernel_wrt_x1x1(Xnew: InputData):
-        #     def cov_fn(x):
-        #         x = x.reshape(1, -1)
-        #         return kernel.K(x)
-        #     d2K = jax.hessian(cov_fn)(Xnew.reshape(-1))
-        #     input_dim = Xnew.shape[1]
-        #     d2K = d2K.reshape([input_dim, input_dim])
-
-        # d2K = hessian_cov_fn_wrt_x1x1(self.kernel.K, Xnew)
-        d2K = hessian_cov_fn_wrt_X1X1(self.kernel.K, Xnew)
-        # d2K = hessian_rbf_cov_fn_wrt_X1X1(self.kernel, Xnew)
-        # print("d2k inside gp class")
-        # print(d2K.shape)
-        # print(d2K)
-        # print(type(d2K))
-
-        # if self.q_sqrt is not None:
-        #     # todo map over output dimension
-        #     # q_sqrt = jnp.squeeze(q_sqrt)
-        # q_sqrt = self.q_sqrt.reshape(
-        #     [self.q_sqrt.shape[-1], self.q_sqrt.shape[-1]]
-        # )
-
-        # TODO this is VERY hacky, only works for single output GPs
-        # handle output dimension better
-        self.num_inducing_points = self.q_sqrt.shape[-1]
-        q_sqrt = self.q_sqrt.reshape(
-            [self.num_inducing_points, self.num_inducing_points]
-        )
-
-        def single_base_conditional(dKdx1, Kxx, d2K):
-            return base_conditional(
-                Kmn=dKdx1,
-                Kmm=Kxx,
-                Knn=d2K,
-                f=f,
-                full_cov=full_cov,
-                q_sqrt=q_sqrt,
-                white=self.whiten,
-            )
-
-        if len(Xnew.shape) == 2:
-            jac_mean, jac_cov = jax.vmap(single_base_conditional)(dKdx1, Kxx, d2K)
-        else:
-            jac_mean, jac_cov = single_base_conditional(dKdx1, Kxx, d2K)
-        return jac_mean, jac_cov
-
-    def predict_jacobian_f_wrt_Xnew_(
-        self,
-        Xnew: InputData,
-        full_cov: bool = False,
-        full_output_cov: bool = False,
-    ) -> MeanAndVariance:
-        """
-        This only works for single output GPs
-        TODO: implement full_cov=False functionality
-        TODO change this if GP or SVGP
-        TODO implement full_output_cov functionality
-        """
-        f = self.q_mu
-        Z = self.inducing_variable
-
-        Kzz = self.kernel.K(Z, Z)
-        # Kxx += self.jitter * jnp.eye(Kxx.shape[0])
-        # print("Kxx")
-        # print(Kxx.shape)
-        if len(Xnew.shape) == 2:
-            num_test = Xnew.shape[0]
-            Kzz = jnp.broadcast_to(Kzz, [num_test, *Kzz.shape])
-        # print(Kxx.shape)
-        # print(type(Kxx))
-        dKdx1 = jacobian_cov_fn_wrt_X1(self.kernel.K, Xnew, X)
-        # print("dKdx1")
-        # print(dKdx1.shape)
-        # print(dKdx1)
-        # print(type(dKdx1))
-        # d2K = hessian_cov_fn_wrt_x1x1(kernel.K, Xnew)
-        # TODO cheating here - only works for RBF kernel
-        # lengthscale = kernel.lengthscales.value
-        # lengthscale = self.kernel.lengthscales
-        # d2K = hessian_cov_fn_wrt_x1x1_hard_coded(
-        #     self.kernel.K, self.kernel.lengthscales, Xnew
-        # )
-
-        # def hessian_kernel_wrt_x1x1(Xnew: InputData):
-        #     def cov_fn(x):
-        #         x = x.reshape(1, -1)
-        #         return kernel.K(x)
-        #     d2K = jax.hessian(cov_fn)(Xnew.reshape(-1))
-        #     input_dim = Xnew.shape[1]
-        #     d2K = d2K.reshape([input_dim, input_dim])
-
-        # d2K = hessian_cov_fn_wrt_x1x1(self.kernel.K, Xnew)
-        d2K = hessian_cov_fn_wrt_X1X1(self.kernel.K, Xnew)
-        # d2K = hessian_rbf_cov_fn_wrt_X1X1(self.kernel, Xnew)
-        # print("d2k inside gp class")
-        # print(d2K.shape)
-        # print(d2K)
-        # print(type(d2K))
-
-        # if self.q_sqrt is not None:
-        #     # todo map over output dimension
-        #     # q_sqrt = jnp.squeeze(q_sqrt)
-        # q_sqrt = self.q_sqrt.reshape(
-        #     [self.q_sqrt.shape[-1], self.q_sqrt.shape[-1]]
-        # )
-
-        # TODO this is VERY hacky, only works for single output GPs
-        # handle output dimension better
-        self.num_inducing_points = self.q_sqrt.shape[-1]
-        q_sqrt = self.q_sqrt.reshape(
-            [self.num_inducing_points, self.num_inducing_points]
-        )
-
-        def single_base_conditional(dKdx1, Kxx, d2K):
-            return base_conditional(
-                Kmn=dKdx1,
-                Kmm=Kxx,
-                Knn=d2K,
-                f=f,
-                full_cov=full_cov,
-                q_sqrt=q_sqrt,
-                white=self.whiten,
-            )
-
-        if len(Xnew.shape) == 2:
-            jac_mean, jac_cov = jax.vmap(single_base_conditional)(dKdx1, Kxx, d2K)
-        else:
-            jac_mean, jac_cov = single_base_conditional(dKdx1, Kxx, d2K)
-        return jac_mean, jac_cov
-
     def predict_y(
         self,
+        params: dict,
         Xnew: InputData,
         full_cov: bool = False,
         full_output_cov: bool = False,
-    ) -> MeanAndVariance:
+    ) -> MeanAndCovariance:
         """Compute the mean and (co)variance of function at Xnew."""
         if full_cov or full_output_cov:
             raise NotImplementedError(
@@ -247,6 +81,15 @@ class GPModel(objax.Module, abc.ABC):
             )
 
         f_mean, f_var = self.predict_f(
-            Xnew, full_cov=full_cov, full_output_cov=full_output_cov
+            params, Xnew, full_cov=full_cov, full_output_cov=full_output_cov
         )
-        return self.likelihood.predict_mean_and_var(f_mean, f_var)
+        return self.likelihood.predict_mean_and_var(params, f_mean, f_var)
+
+
+class GPR(GPModel):
+    def init_params(
+        self,
+    ) -> dict:
+        kernel_params = self.kernel.init_params()
+        likelihood_params = self.likelihood.init_params()
+        # return {'kernel':kernel, 'likelihood':.likelihood,}
