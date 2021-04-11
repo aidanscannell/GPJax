@@ -18,6 +18,7 @@ tensorflow-probability = "^0.12.1"
 # tfp-nightly = "^0.13.0-alpha.20210331"
 
 mypy = "^0.812"
+multidispatch = "^0.2"
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
 isort = "^5.6.4"
