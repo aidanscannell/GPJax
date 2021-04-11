@@ -8,8 +8,8 @@ As such, this package takes a similar approach but offers the benefits (and ease
 
 =GPJax= keeps in the spirit of JAX (to provide an extensible system for composable function transformations)
 by implementing its features as pure functions.
-However, the number of components in Gaussian process methods (compositions of mean functions, kernels,
-variational parameters etc) makes a purely functional approach less appealing.
+However, managing the parameters associated with the different components in Gaussian process methods
+(compositions of mean functions, kernels, variational parameters etc) makes a purely functional approach less appealing.
 I have experimented using both [[https://github.com/deepmind/dm-haiku][haiku]] and [[https://github.com/google/objax][objax]] for state management and neither of them provided a level of abstraction
 I was happy with.
 As a result, =GPJax= now implements a simple approach to state management.
@@ -36,7 +36,7 @@ If you like what I'm doing or have any recommendations then please reach out, or
     assert K_object == K_func
     #+end_src
 4. In general, classes provide wrappers around functions that accept a dictionary of parameters as the first argument,
-   + =gpjax.models.SVGP.predict_f(params, Xnew,...)=)
+   + =gpjax.models.SVGP.predict_f(params, Xnew,...)=
    + =gpjax.kernels.SquaredExponential.K(params, X1, X2)=
    + =gpjax.models.SVGP.predict_f(params, Xnew,...)=
 
@@ -63,12 +63,12 @@ K = kernel(params, X1, X2)  # call the kernel with the dictionary of parameters
 Importantly, this is a pure function because the kernel's hyperparameters (lengthscales and variances in this case)
 are passed as an argument. This means that we can easily compose it with any JAX transformation,
 for example, =jax.jit= and =jax.jacfwd=.
-We can calculate the derivative of our kernel w.r.t it's hyperparameters using =jax.jacfwd=,
+We can calculate the derivative of our kernel w.r.t its hyperparameters using =jax.jacfwd=,
 #+begin_src python
-# create a function that returns the derivative of the w.r.t params (its first argument)
+# create a function that returns the derivative of kernel w.r.t params (its first argument)
 jac_kernel_wrt_params_fn = jax.jacfwd(kernel, argnums=0)
 # evaluate the derivative of the kernel wrt its hyperparameters
-jac_kernel_wrt_params = jac_kernel_wrt_params_fn(params, x1, x2)
+jac_kernel_wrt_params = jac_kernel_wrt_params_fn(params, X1, X2)
 print(jac_kernel_wrt_params["lengthscales"].shape)
 print(jac_kernel_wrt_params["variance"].shape)
 #+end_src
