@@ -20,9 +20,7 @@ def Kuf(inducing_inputs, kernel: Kernel, Xnew: InputData):
     return kernel.K(inducing_inputs, Xnew)
 
 
-def jacobian_cov_fn_wrt_X1(
-    cov_fn, X1: InputData, X2: InputData
-) -> jnp.ndarray:
+def jacobian_cov_fn_wrt_X1(cov_fn, X1: InputData, X2: InputData) -> jnp.ndarray:
     """Calculate Jacobian of cov_fn(X1, X2) wrt to X1
 
     :param cov_fn: covariance function with signature cov_fn(x1, x2)
