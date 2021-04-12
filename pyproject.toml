@@ -5,9 +5,11 @@ description = "Minimal Gaussian process library in JAX with custom state managem
 authors = ["Aidan Scannell <scannell.aidan@gmail.com>"]
 
 [tool.poetry.dependencies]
-# python = "^3.7"
+# dataclasses is built-in for python ^3.8 (but not earlier) and Poetry can't handle conditional dependencies in
+# other packages (e.g. gpflow) so we set python ^3.8. Python 3.6 should work using pip...
+python = "^3.8"
 # python = "^3.6"
-python = ">=3.6,<3.7"  
+# python = ">=3.6,<3.7"  
 # python = ">=3.6,<3.10"  
 numpy = "^1.19.4"
 # jax = "^0.2.5"
