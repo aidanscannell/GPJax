@@ -8,8 +8,10 @@ from tensor_annotations.axes import Batch
 from .shapes import N1, N2, InputDim, NumData, OutputDim
 
 # MeanAndVariance = Tuple[jnp.ndarray, jnp.ndarray]
-InputData = jnp.ndarray
-OutputData = jnp.ndarray
+# InputData = jnp.ndarray
+# OutputData = jnp.ndarray
+InputData = tjax.Array2[NumData, InputDim]
+OutputData = tjax.Array2[NumData, OutputDim]
 # MeanFunc = jnp.float64
 
 # Variance = Union[jnp.float64, jnp.ndarray]
