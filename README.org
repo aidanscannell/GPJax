@@ -145,13 +145,13 @@ pip install -e .
   + [] Implement gpjax.models.SVGP
     - [X] predict_f
     - [X] init_variational_parameters
-    - [] KL
+    - [X] KL
     - [] lower bound
 
-- [] Tests for mean functions
+- [X] Tests for mean functions
   + [X] Tests for zero
   + [X] Tests for constant
-- [] Tests for kernels
+- [X] Tests for kernels
   + [X] Tests for squared exponential
   + [X] Tests for separate independent
 - [] Tests for conditionals
@@ -163,3 +163,4 @@ pip install -e .
   + [] Tests for softmax likelihood
 - [] Tests for gpjax.models.SVGP
   + [X] Tests for gpjax.models.SVGP.predict_f
+  + [X] Tests for gpjax.models.SVGP.prior_kl
