@@ -166,7 +166,6 @@ class SVGP(GPModel):
     #         scale = tf.cast(1.0, kl.dtype)
     #     return tf.reduce_sum(var_exp) * scale - kl
 
-    @jax.partial(jax.jit, static_argnums=(0, 3, 4))
     def predict_f(
         self,
         params: dict,
@@ -183,17 +182,3 @@ class SVGP(GPModel):
             full_output_cov,
             self.whiten,
         )
-        # mean, cov = conditional(
-        #     params["kernel"],
-        #     Xnew,
-        #     params["inducing_variable"],
-        #     self.kernel,
-        #     # kernel=self.kernel,
-        #     f=params["q_mu"],
-        #     full_cov=full_cov,
-        #     full_output_cov=full_output_cov,
-        #     q_sqrt=params["q_sqrt"],
-        #     white=self.whiten,
-        #     # jitter=self.jitter,
-        # )
-        # return mean + self.mean_function(params["mean_function"], Xnew), cov
