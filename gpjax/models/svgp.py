@@ -5,7 +5,7 @@ from typing import Optional
 from gpjax.config import default_float
 
 from gpjax.conditionals import conditional
-from gpjax.custom_types import InputData, MeanAndCovariance
+from gpjax.custom_types import InputData, MeanAndCovariance, NumInducing, OutputDim
 from gpjax.kernels import Kernel
 from gpjax.mean_functions import MeanFunction
 from gpjax.models import GPModel
@@ -93,8 +93,13 @@ class SVGP(GPModel):
         mean_function: Optional[MeanFunction] = None,
         num_latent_gps: Optional[int] = 1,
         q_diag: Optional[bool] = False,
-        q_mu: Optional[jnp.ndarray] = None,
-        q_sqrt: Optional[jnp.ndarray] = None,
+        q_mu: Optional[tjax.Array2[NumInducing, OutputDim]] = None,
+        q_sqrt: Optional[
+            Union[
+                tjax.Array2[NumInducing, OutputDim],
+                tjax.Array2[OutputDim, NumInducing, NumInducing],
+            ]
+        ] = None,
         whiten: Optional[bool] = True,
         # num_data=None,
         # jitter: Optional[jnp.float64] = 1e-6,
