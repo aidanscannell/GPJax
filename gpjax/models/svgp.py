@@ -12,6 +12,7 @@ from gpjax.models import GPModel
 from gpjax.likelihoods import Likelihood
 from gpjax.prediction import gp_predict_f
 from gpjax.utilities.bijectors import positive, triangular
+from gpjax import kullback_leiblers
 
 jax.config.update("jax_enable_x64", True)
 
@@ -48,6 +49,7 @@ def init_svgp_variational_parameters(
     if q_mu is None:
         q_mu = jnp.zeros((num_inducing, num_latent_gps))
     q_mu = jnp.array(q_mu, dtype=default_float())
+
     if q_sqrt is None:
         if q_diag:
             q_sqrt = jnp.ones((num_inducing, num_latent_gps), dtype=default_float())
@@ -134,10 +136,15 @@ class SVGP(GPModel):
             "q_sqrt": self.q_sqrt,
         }
 
-    # def prior_kl(self) -> tf.Tensor:
-    #     return kullback_leiblers.prior_kl(
-    #         self.inducing_variable, self.kernel, self.q_mu, self.q_sqrt, whiten=self.whiten
-    #     )
+    def prior_kl(self, params: dict) -> jnp.float64:
+        return kullback_leiblers.prior_kl(
+            params["kernel"],
+            params["inducing_variable"],
+            self.kernel,
+            params["q_mu"],
+            params["q_sqrt"],
+            whiten=self.whiten,
+        )
 
     # def maximum_log_likelihood_objective(self, data: RegressionData) -> tf.Tensor:
     #     return self.elbo(data)
