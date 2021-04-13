@@ -83,7 +83,7 @@ class GPModel(Module, abc.ABC):
         f_mean, f_var = self.predict_f(
             params, Xnew, full_cov=full_cov, full_output_cov=full_output_cov
         )
-        return self.likelihood.predict_mean_and_var(params, f_mean, f_var)
+        return self.likelihood.predict_mean_and_var(params["likelihood"], f_mean, f_var)
 
 
 class GPR(GPModel):
