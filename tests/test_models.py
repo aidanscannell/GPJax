@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 import chex
 import jax
+import tensorflow_probability.substrates.jax.distributions as tfd
 from absl.testing import parameterized
+from gpjax.config import default_float, default_jitter
+from gpjax.kernels import SeparateIndependent, SquaredExponential
+from gpjax.likelihoods import Gaussian
 from gpjax.mean_functions import Constant
 from gpjax.models import SVGP
-from gpjax.likelihoods import Gaussian
 from jax import numpy as jnp
-from gpjax.kernels import SquaredExponential, SeparateIndependent
 
 key = jax.random.PRNGKey(0)
 jax.config.update("jax_enable_x64", True)
 
 # Data variants
 input_dims = [1, 5]
+# input_dims = [5]
 # output_dims = [4]
-output_dims = [1, 5]
+output_dims = [1, 4]
+# output_dims = [1]
 # num_datas = [300, (2, 3, 100)]
 num_datas = [300]
 
@@ -26,7 +30,6 @@ q_diags = [True, False]
 
 # SVGP.predict_f variants
 full_covs = [True, False]
-# full_covs = [True]
 # TODO test full_output_covs=True
 # full_output_covs = [True, False]
 full_output_covs = [False]
@@ -55,23 +58,24 @@ class TestSVGP(chex.TestCase):
         full_cov,
         full_output_cov,
     ):
-        # data = TestData(input_dim=input_dim, output_dim=output_dim, num_data=num_data)
-        # data = TestData(input_dim, output_dim, num_data)
+        """Check shapes of output"""
         Xnew = jax.random.uniform(key, shape=(num_data, input_dim))
         # Y = jax.random.uniform(key, shape=(num_data, output_dim))
 
         mean_function = Constant(output_dim=output_dim)
         likelihood = Gaussian()
-        kernels = [
-            SquaredExponential(
+        if output_dim > 1:
+            kernels = [
+                SquaredExponential(
+                    lengthscales=jnp.ones(input_dim, dtype=jnp.float64), variance=2.0
+                )
+                for _ in range(output_dim)
+            ]
+            kernel = SeparateIndependent(kernels)
+        else:
+            kernel = SquaredExponential(
                 lengthscales=jnp.ones(input_dim, dtype=jnp.float64), variance=2.0
             )
-            for _ in range(output_dim)
-        ]
-        kernel = SeparateIndependent(kernels)
-        # kernel = SquaredExponential(
-        #     lengthscales=jnp.ones(input_dim, dtype=jnp.float64), variance=2.0
-        # )
         inducing_variable = jax.random.uniform(key=key, shape=(num_inducing, input_dim))
 
         svgp = SVGP(
@@ -91,6 +95,9 @@ class TestSVGP(chex.TestCase):
 
         var_predict_f = self.variant(predict_f)
         mean, cov = var_predict_f(params, Xnew)
+        print("mean")
+        print(mean.shape)
+        print(cov.shape)
 
         if not full_output_cov:
             assert mean.ndim == 2
@@ -107,3 +114,72 @@ class TestSVGP(chex.TestCase):
                 assert cov.shape[1] == output_dim
         else:
             raise NotImplementedError("Need to add tests for full_output_cov=True")
+
+    @chex.variants(with_jit=True, without_jit=True)
+    @parameterized.product(
+        input_dim=input_dims,
+        output_dim=output_dims,
+        num_inducing=num_inducings,
+        q_diag=q_diags,
+        whiten=whitens,
+    )
+    def test_kl(
+        self,
+        input_dim,
+        output_dim,
+        num_inducing,
+        q_diag,
+        whiten,
+    ):
+        """Check KL returns same as TensorFlow to 4 decimal places."""
+        inducing_variable = jax.random.uniform(key, shape=(num_inducing, input_dim))
+
+        if output_dim > 1:
+            kernels = [
+                SquaredExponential(
+                    lengthscales=jnp.ones(input_dim, dtype=jnp.float64), variance=2.0
+                )
+                for _ in range(output_dim)
+            ]
+            kernel = SeparateIndependent(kernels)
+        else:
+            kernel = SquaredExponential(
+                lengthscales=jnp.ones(input_dim, dtype=jnp.float64), variance=2.0
+            )
+        likelihood = Gaussian()
+        mean_function = Constant()
+
+        svgp = SVGP(
+            kernel,
+            likelihood,
+            inducing_variable,
+            mean_function,
+            num_latent_gps=output_dim,
+            q_diag=q_diag,
+            whiten=whiten,
+        )
+
+        params = svgp.init_params()
+
+        var_prior_kl = self.variant(svgp.prior_kl)
+        kl = var_prior_kl(params)
+
+        if whiten:
+            K = jnp.eye(num_inducing)
+        else:
+            K = svgp.kernel(params["kernel"], inducing_variable, inducing_variable)
+            K += jnp.eye(K.shape[-2]) * default_jitter()
+
+        p = tfd.MultivariateNormalFullCovariance(
+            jnp.zeros(svgp.q_mu.T.shape, dtype=default_float()), K
+        )
+        q_mu = svgp.q_mu.T
+        if q_diag:
+            q_cov = svgp.q_sqrt.T
+            q = tfd.MultivariateNormalDiag(q_mu, q_cov)
+        else:
+            q_cov = svgp.q_sqrt
+            q = tfd.MultivariateNormalFullCovariance(q_mu, q_cov)
+        kl_tf = tfd.kl_divergence(q, p)
+        kl_tf_sum = jnp.sum(kl_tf)
+        assert jnp.round(kl, 4) == jnp.round(kl_tf_sum, 4)
