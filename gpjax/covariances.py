@@ -83,14 +83,13 @@ def hessian_cov_fn_wrt_X1X1(cov_fn, X1: InputData) -> jnp.ndarray:
     return hessian
 
 
-def hessian_rbf_cov_fn_wrt_X1X1(
-    kernel: RBF, X1: InputData
-) -> jnp.ndarray:
+def hessian_rbf_cov_fn_wrt_X1X1(kernel: RBF, X1: InputData) -> jnp.ndarray:
     """Calculate derivative of kernel.K(X1, X1) wrt to X1
 
     :param kernel: an instance of an RBF kernel
     :param X1: [num_X1, input_dim]
     """
+
     def hessian_rbf_cov_fn_wrt_single_x1x1(x1: InputData):
         x1 = x1.reshape(1, -1)
         # l2 = kernel.lengthscales.value ** 2
