@@ -63,8 +63,8 @@ class Gaussian(ScalarLikelihood):
     # def conditional_variance(self, F):
     #     return tf.fill(tf.shape(F), tf.squeeze(self.variance))
 
-    # def predict_mean_and_var(self, Fmu, Fvar):
-    #     return tf.identity(Fmu), Fvar + self.variance
+    def predict_mean_and_var(self, params, Fmu, Fvar):
+        return Fmu, Fvar + params["variance"]
 
     # def predict_log_density(self, Fmu, Fvar, Y):
     #     return tf.reduce_sum(
