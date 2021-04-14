@@ -19,12 +19,12 @@ If you like what I'm doing or have any recommendations then please reach out, or
 
 ** State Management
 1. =gpjax= relies upon its =gpjax.Module= class which all constructs with trainable state must inherit e.g. =MeanFunction=, =Kernel=, =GPModel=.
-2. Each =gpjax.Module= subclass must implement an =init_params()= method that returns a dictionary of the parameters associated with the object, e.g. for a stationary kernel =kernel_param_dict = kernel.init_params()= returns ={'lengthscales': DeviceArray([1.], dtype=float64), 'variance': DeviceArray([1.], dtype=float64)}=.
+2. Each =gpjax.Module= subclass must implement an =get_params()= method that returns a dictionary of the parameters associated with the object, e.g. for a stationary kernel =kernel_param_dict = kernel.get_params()= returns ={'lengthscales': DeviceArray([1.], dtype=float64), 'variance': DeviceArray([1.], dtype=float64)}=.
 3. JAX's functionality depends upon pure functions and GPJax implements all functionality as standalone functions; classes then call the relevant functions.
    + For example, the squared exponential kernel class is really just a convenience class for storing its associated parameters and providing a wrapper around its associated function. This is handy because it means that we can either create an instance of the kernel class and call it, or we can call the standalone function,
     #+begin_src python
     kernel = SquaredExponential()
-    params = kernel.init_params()  # get the dictionary of parameters associated with kernel
+    params = kernel.get_params()  # get the dictionary of parameters associated with kernel
 
     K_object = kernel(
         params, X1, X2
@@ -57,7 +57,7 @@ X2 = jax.random.uniform(key, shape=(num_x2, input_dim))
 
 # create an instance of the SE kernel
 kernel = SquaredExponential()
-params = kernel.init_params()  # get the dictionary of parameters associated with kernel
+params = kernel.get_params()  # get the dictionary of parameters associated with kernel
 K = kernel(params, X1, X2)  # call the kernel with the dictionary of parameters
 #+end_src
 Importantly, this is a pure function because the kernel's hyperparameters (lengthscales and variances in this case)
@@ -117,36 +117,40 @@ pip install -e .
 #+END_SRC
 
 * TODOs
-- [] Implement mean functions
+- [ ] Implement mean functions
   + [X] Implement zero
   + [X] Implement constant
-- [] Implement kernels
+- [ ] Implement kernels
   + [X] Implement base
   + [X] Implement squared exponential
   + [X] Implement multi output
     - [X] Implement separate independent
-    - [] Implement shared independent
-    - [] Implement LinearCoregionalization
-- [] Implement conditionals
+    - [ ] Implement shared independent
+    - [ ] Implement LinearCoregionalization
+- [ ] Implement conditionals
   + [X] Implement single-output conditionals
   + [X] Implement multi-output conditionals
   + [X] Implement dispatch for single/multioutput
-  + [] Implement dispatch for different inducing variables
-- [] Implement likelihoods
+  + [ ] Implement dispatch for different inducing variables
+- [ ] Implement likelihoods
   - [X] Implement base likelihood
   - [X] Implement Gaussian likelihood
-  - [] Implement Bernoulli likelihood
-  - [] Implement Softmax likelihood
-- [] Implement gpjax.models
+  - [ ] Implement Bernoulli likelihood
+  - [ ] Implement Softmax likelihood
+- [ ] Implement gpjax.models
   + [X] Implement gpjax.models.GPModel
     - [X] predict_f
     - [X] predict_y
-  + [] Implement gpjax.models.GPR
-  + [] Implement gpjax.models.SVGP
+  + [ ] Implement gpjax.models.GPR
+  + [ ] Implement gpjax.models.SVGP
     - [X] predict_f
     - [X] init_variational_parameters
     - [X] KL
-    - [] lower bound
+    - [X] lower bound
+- [ ] Notebook examples
+  + [ ] GPR regression
+  + [X] SVGP regression
+  + [ ] SVGP classification
 
 - [X] Tests for mean functions
   + [X] Tests for zero
@@ -154,13 +158,13 @@ pip install -e .
 - [X] Tests for kernels
   + [X] Tests for squared exponential
   + [X] Tests for separate independent
-- [] Tests for conditionals
-  + [] Tests for single output conditionals
-  + [] Tests for multi output conditionals
-- [] Tests for likelihoods
-  + [] Tests for gaussian likelihood
-  + [] Tests for bernoulli likelihood
-  + [] Tests for softmax likelihood
-- [] Tests for gpjax.models.SVGP
+- [ ] Tests for conditionals
+  + [ ] Tests for single output conditionals
+  + [ ] Tests for multi output conditionals
+- [ ] Tests for likelihoods
+  + [ ] Tests for gaussian likelihood
+  + [ ] Tests for bernoulli likelihood
+  + [ ] Tests for softmax likelihood
+- [ ] Tests for gpjax.models.SVGP
   + [X] Tests for gpjax.models.SVGP.predict_f
   + [X] Tests for gpjax.models.SVGP.prior_kl
