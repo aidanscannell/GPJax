@@ -49,9 +49,7 @@ class Gaussian(ScalarLikelihood):
     def variance(self):
         return softplus(self._variance)
 
-    def init_params(
-        self,
-    ) -> dict:
+    def get_params(self) -> dict:
         return {"variance": self.variance}
 
     def _scalar_log_prob(self, params: dict, F, Y):

@@ -70,7 +70,7 @@ class Constant(MeanFunction):
         self.c = c
         self.output_dim = output_dim
 
-    def init_params(
+    def get_params(
         self,
     ) -> dict:
         return {"constant": self.c}
@@ -95,7 +95,7 @@ class Zero(Constant):
         self.output_dim = output_dim
         del self.c
 
-    def init_params(
+    def get_params(
         self,
     ) -> dict:
         return None

@@ -108,7 +108,7 @@ class Kernel(abc.ABC):
             return self.K(params, X1, X2)
 
     @abc.abstractmethod
-    def init_params(self) -> dict:
+    def get_params(self) -> dict:
         raise NotImplementedError
 
     @staticmethod
@@ -151,5 +151,5 @@ class Combination(Kernel):
         self.kernels = kernels
         self.num_kernels = len(kernels)
 
-    def init_params(self) -> dict:
-        return jax.tree_map(lambda kern: kern.init_params(), self.kernels)
+    def get_params(self) -> dict:
+        return jax.tree_map(lambda kern: kern.get_params(), self.kernels)

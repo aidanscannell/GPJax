@@ -52,7 +52,7 @@ class Stationary(Kernel, abc.ABC):
         self.lengthscales = jnp.array(lengthscales)
         self.variance = jnp.array(variance)
 
-    def init_params(self) -> dict:
+    def get_params(self) -> dict:
         return {"lengthscales": self.lengthscales, "variance": self.variance}
 
 

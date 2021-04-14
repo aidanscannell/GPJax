@@ -4,7 +4,5 @@ import abc
 
 class Module(abc.ABC):
     @abc.abstractmethod
-    def init_params(
-        self,
-    ) -> dict:
+    def get_params(self) -> dict:
         raise NotImplementedError

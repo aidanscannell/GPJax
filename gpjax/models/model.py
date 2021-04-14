@@ -87,9 +87,9 @@ class GPModel(Module, abc.ABC):
 
 
 class GPR(GPModel):
-    def init_params(
+    def get_params(
         self,
     ) -> dict:
-        kernel_params = self.kernel.init_params()
-        likelihood_params = self.likelihood.init_params()
+        kernel_params = self.kernel.get_params()
+        likelihood_params = self.likelihood.get_params()
         # return {'kernel':kernel, 'likelihood':.likelihood,}
