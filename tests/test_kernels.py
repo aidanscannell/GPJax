@@ -48,7 +48,7 @@ class TestSquaredExponential(chex.TestCase):
         if not full_cov:
             X2 = None
         kernel = SquaredExponential(lengthscales=lengthscales, variance=variance)
-        params = kernel.init_params()
+        params = kernel.get_params()
 
         def kernel_(params, X1, X2):
             return kernel(params, X1, X2, full_cov=full_cov)

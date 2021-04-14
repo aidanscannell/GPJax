@@ -88,7 +88,7 @@ class TestSVGP(chex.TestCase):
             whiten=whiten,
         )
 
-        params = svgp.init_params()
+        params = svgp.get_params()
 
         def predict_f(params, Xnew):
             return svgp.predict_f(params, Xnew, full_cov, full_output_cov)
@@ -159,7 +159,7 @@ class TestSVGP(chex.TestCase):
             whiten=whiten,
         )
 
-        params = svgp.init_params()
+        params = svgp.get_params()
 
         var_prior_kl = self.variant(svgp.prior_kl)
         kl = var_prior_kl(params)

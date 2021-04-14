@@ -32,7 +32,7 @@ class TestMeanFunctions(chex.TestCase):
     @parameterized.product(X=[data.X, batched_data.X], output_dim=[1, 2, 5])
     def test_Zero(self, X, output_dim):
         mean_function = Zero(output_dim=output_dim)
-        params = mean_function.init_params()
+        params = mean_function.get_params()
         var_mean_function = self.variant(mean_function)
 
         mean = var_mean_function(params, X)
@@ -44,7 +44,7 @@ class TestMeanFunctions(chex.TestCase):
     def test_Constant(self, X, output_dim):
         constant = 4.0
         mean_function = Constant(c=constant, output_dim=output_dim)
-        params = mean_function.init_params()
+        params = mean_function.get_params()
         var_mean_function = self.variant(mean_function)
 
         mean = var_mean_function(params, X)
