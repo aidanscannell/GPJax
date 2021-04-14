@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
+from typing import Optional, Union, Callable
+
 import jax
 import jax.numpy as jnp
-from typing import Optional
-from gpjax.config import default_float
-
+import tensor_annotations.jax as tjax
+import tensorflow_probability.substrates.jax as tfp
+from gpjax import kullback_leiblers
 from gpjax.conditionals import conditional
-from gpjax.custom_types import InputData, MeanAndCovariance, NumInducing, OutputDim
+from gpjax.config import default_float
+from gpjax.custom_types import (
+    InputData,
+    InputDim,
+    MeanAndCovariance,
+    NumInducing,
+    OutputDim,
+)
 from gpjax.kernels import Kernel
+from gpjax.likelihoods import Likelihood
 from gpjax.mean_functions import MeanFunction
 from gpjax.models import GPModel
-from gpjax.likelihoods import Likelihood
 from gpjax.prediction import gp_predict_f
 from gpjax.utilities.bijectors import positive, triangular
-from gpjax import kullback_leiblers
+from tensor_annotations.axes import Batch
 
 jax.config.update("jax_enable_x64", True)
 
@@ -64,8 +73,12 @@ def init_svgp_variational_parameters(
             ]
             q_sqrt = jnp.array(q_sqrt)
             # q_sqrt = Parameter(q_sqrt, transform=triangular())  # [P, M, M]
+            # q_sqrt = tfp.bijectors.FillTriangular(upper=False)  # [P, M, M]
+            # q_sqrt = q_sqrt_bijector.forward(q_sqrt)
             # q_sqrt = tfp.util.TransformedVariable(
-            #     q_sqrt, bijector=triangular()
+            #     q_sqrt,
+            #     bijector=tfp.bijectors.FillTriangular()
+            #     # q_sqrt, bijector=triangular()
             # )  # [P, M, M]
     else:
         if q_diag:
@@ -99,7 +112,7 @@ class SVGP(GPModel):
         q_sqrt: Optional[
             Union[
                 tjax.Array2[NumInducing, OutputDim],
-                tjax.Array2[OutputDim, NumInducing, NumInducing],
+                tjax.Array3[OutputDim, NumInducing, NumInducing],
             ]
         ] = None,
         whiten: Optional[bool] = True,
@@ -123,10 +136,10 @@ class SVGP(GPModel):
             self.num_inducing, num_latent_gps, q_mu, q_sqrt, q_diag
         )
 
-    def init_params(self):
-        kernel_params = self.kernel.init_params()
-        likelihood_params = self.likelihood.init_params()
-        mean_function_params = self.mean_function.init_params()
+    def get_params(self):
+        kernel_params = self.kernel.get_params()
+        likelihood_params = self.likelihood.get_params()
+        mean_function_params = self.mean_function.get_params()
         return {
             "kernel": kernel_params,
             "likelihood": likelihood_params,
@@ -149,22 +162,39 @@ class SVGP(GPModel):
     # def maximum_log_likelihood_objective(self, data: RegressionData) -> tf.Tensor:
     #     return self.elbo(data)
 
-    # def elbo(self, data: RegressionData) -> tf.Tensor:
-    #     """
-    #     This gives a variational bound (the evidence lower bound or ELBO) on
-    #     the log marginal likelihood of the model.
-    #     """
-    #     X, Y = data
-    #     kl = self.prior_kl()
-    #     f_mean, f_var = self.predict_f(X, full_cov=False, full_output_cov=False)
-    #     var_exp = self.likelihood.variational_expectations(f_mean, f_var, Y)
-    #     if self.num_data is not None:
-    #         num_data = tf.cast(self.num_data, kl.dtype)
-    #         minibatch_size = tf.cast(tf.shape(X)[0], kl.dtype)
-    #         scale = num_data / minibatch_size
-    #     else:
-    #         scale = tf.cast(1.0, kl.dtype)
-    #     return tf.reduce_sum(var_exp) * scale - kl
+    def elbo(
+        self,
+        params: dict,
+        X: tjax.Array2[Batch, InputDim],
+        Y: tjax.Array2[Batch, OutputDim],
+    ) -> jnp.float64:
+        """Evidence Lower BOund
+
+        Variational lower bound (the evidence lower bound or ELBO) on the log
+        marginal likelihood of the model.
+        """
+        kl = self.prior_kl(params)
+        print("kl")
+        print(kl)
+        f_mean, f_var = self.predict_f(params, X, full_cov=False, full_output_cov=False)
+        print("f_mean")
+        print(f_mean.shape)
+        print(f_var.shape)
+        var_exp = self.likelihood.variational_expectations(
+            params["likelihood"], f_mean, f_var, Y
+        )
+        print("var_exp")
+        print(var_exp.shape)
+        # if self.num_data is not None:
+        #     num_data = tf.cast(self.num_data, kl.dtype)
+        #     minibatch_size = tf.cast(tf.shape(X)[0], kl.dtype)
+        #     scale = num_data / minibatch_size
+        # else:
+        #     scale = tf.cast(1.0, kl.dtype)
+        var_exp_sum = jnp.sum(var_exp)
+        scale = 1.0
+        print(var_exp_sum.shape)
+        return jnp.sum(var_exp) * scale - kl
 
     def predict_f(
         self,
@@ -182,3 +212,40 @@ class SVGP(GPModel):
             full_output_cov,
             self.whiten,
         )
+
+
+def elbo(
+    params: dict,
+    X: tjax.Array2[Batch, InputDim],
+    Y: tjax.Array2[Batch, OutputDim],
+    prior_kl: Callable,
+    predict_f: Callable,
+    likelihood: Likelihood,
+) -> jnp.float64:
+    """Evidence Lower BOund
+
+    Variational lower bound (the evidence lower bound or ELBO) on the log
+    marginal likelihood of the model.
+    """
+    kl = prior_kl(params)
+    print("kl")
+    print(kl)
+    f_mean, f_var = predict_f(params, X, full_cov=False, full_output_cov=False)
+    print("f_mean")
+    print(f_mean.shape)
+    print(f_var.shape)
+    var_exp = likelihood.variational_expectations(
+        params["likelihood"], f_mean, f_var, Y
+    )
+    print("var_exp")
+    print(var_exp.shape)
+    # if self.num_data is not None:
+    #     num_data = tf.cast(self.num_data, kl.dtype)
+    #     minibatch_size = tf.cast(tf.shape(X)[0], kl.dtype)
+    #     scale = num_data / minibatch_size
+    # else:
+    #     scale = tf.cast(1.0, kl.dtype)
+    var_exp_sum = jnp.sum(var_exp)
+    scale = 1.0
+    print(var_exp_sum.shape)
+    return jnp.sum(var_exp) * scale - kl
