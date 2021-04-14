@@ -73,7 +73,7 @@ class Gaussian(ScalarLikelihood):
 
     def variational_expectations(self, params, Fmu, Fvar, Y):
         variance = params["variance"]
-        return jnp.reduce_sum(
+        return jnp.sum(
             -0.5 * jnp.log(2 * jnp.pi)
             - 0.5 * jnp.log(variance)
             - 0.5 * ((Y - Fmu) ** 2 + Fvar) / variance,
