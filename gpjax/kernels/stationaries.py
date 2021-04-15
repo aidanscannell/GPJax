@@ -2,8 +2,9 @@
 import abc
 from typing import Optional, Union
 
+import tensor_annotations.jax as tjax
 from gpjax.config import default_float
-from gpjax.custom_types import Covariance, Input1, Input2
+from gpjax.custom_types import Covariance, Input1, Input2, InputDim
 from gpjax.kernels import Kernel, kernel_decorator
 from gpjax.kernels.distances import scaled_squared_euclidean_distance
 from jax import numpy as jnp
@@ -40,12 +41,13 @@ def squared_exponential_cov_fn(
 class Stationary(Kernel, abc.ABC):
     def __init__(
         self,
-        lengthscales: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+        lengthscales: Optional[Union[jnp.float64, tjax.Array1[InputDim]]] = jnp.array(
             [1.0], dtype=default_float()
         ),
-        variance: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
-            [1.0], dtype=default_float()
-        ),
+        variance: Optional[jnp.float64] = 1.0,
+        # variance: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+        #     [1.0], dtype=default_float()
+        # ),
         name: Optional[str] = "Stationary kernel",
     ):
         super().__init__(name=name)
@@ -59,12 +61,16 @@ class Stationary(Kernel, abc.ABC):
 class SquaredExponential(Stationary):
     def __init__(
         self,
-        lengthscales: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+        lengthscales: Optional[Union[jnp.float64, tjax.Array1[InputDim]]] = jnp.array(
             [1.0], dtype=default_float()
         ),
-        variance: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
-            [1.0], dtype=default_float()
-        ),
+        variance: Optional[jnp.float64] = 1.0,
+        # lengthscales: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+        #     [1.0], dtype=default_float()
+        # ),
+        # variance: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+        #     [1.0], dtype=default_float()
+        # ),
         name: Optional[str] = "Squared exponential kernel",
     ):
         super().__init__(lengthscales=lengthscales, variance=variance, name=name)
