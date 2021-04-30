@@ -80,20 +80,21 @@ def single_output_conditional(
         kernel(kernel_params, X, X)
         + jnp.eye(X.shape[-2], dtype=X.dtype) * default_jitter()
     )  # [..., M, M]
+    print("insidce single output cond")
+    print(Kmm.shape)
+    print(X.shape)
+    print(jnp.eye(X.shape[-2], dtype=X.dtype).shape)
     Kmn = kernel(kernel_params, X, Xnew)  # [M, N]
     Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [N, N]
-
-    def base_conditional_wrapper(f_, q_sqrt_):
-        return base_conditional(
-            Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
-        )
+    # Knn = (
+    #     kernel(kernel_params, Xnew, full_cov=full_cov)
+    #     + jnp.eye(Xnew.shape[-2], dtype=X.dtype) * default_jitter()
+    # )  # [N, N]
 
     # setup axis containing output dim which are to be mapped over
-    if full_cov:
-        # [output_dim, num_data, num_data]
+    if full_cov:  # [output_dim, num_data, num_data]
         out_axes = (-1, 0)
-    else:
-        # [num_data, output_dim]
+    else:  # [num_data, output_dim]
         out_axes = (-1, -1)
     if q_sqrt is not None:
         if q_sqrt.ndim == 2:
@@ -103,9 +104,24 @@ def single_output_conditional(
         else:
             raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
 
-    f_mean, f_cov = jax.vmap(
-        base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
-    )(f, q_sqrt)
+        def base_conditional_wrapper(f_, q_sqrt_):
+            return base_conditional(
+                Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
+            )
+
+        f_mean, f_cov = jax.vmap(
+            base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+        )(f, q_sqrt)
+    else:
+
+        def base_conditional_wrapper(f_):
+            return base_conditional(
+                Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt, white=white
+            )
+
+        f_mean, f_cov = jax.vmap(
+            base_conditional_wrapper, in_axes=-1, out_axes=out_axes
+        )(f)
     return f_mean, f_cov
 
 
@@ -137,11 +153,6 @@ def independent_output_conditional(
     Kmn = kernel(kernel_params, X, Xnew)  # [P, M, N]
     Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [P, N, N] or [N, P]
 
-    def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_, q_sqrt_):
-        return base_conditional(
-            Kmn_, Kmm_, Knn_, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
-        )
-
     # setup axis containing output dim which are to be mapped over
     if full_cov:
         # [output_dim, num_data, num_data]
@@ -163,9 +174,28 @@ def independent_output_conditional(
         else:
             raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
 
-    F_mean, F_cov = jax.vmap(
-        base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
-    )(Kmn, Kmm, Knn, f, q_sqrt)
+        def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_, q_sqrt_):
+            return base_conditional(
+                Kmn_, Kmm_, Knn_, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
+            )
+
+        F_mean, F_cov = jax.vmap(
+            base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+        )(Kmn, Kmm, Knn, f, q_sqrt)
+    else:
+
+        def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_):
+            return base_conditional(
+                Kmn_, Kmm_, Knn_, f_, full_cov=full_cov, q_sqrt=q_sqrt, white=white
+            )
+
+        if full_cov:
+            in_axes = (0, 0, 0, -1)
+        else:
+            in_axes = (0, 0, -1, -1)
+        F_mean, F_cov = jax.vmap(
+            base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+        )(Kmn, Kmm, Knn, f)
     return F_mean, F_cov
 
 
