@@ -26,13 +26,20 @@ num_datas = [300]
 # SVGP variants
 num_inducings = [30]
 whitens = [True, False]
+# whitens = [False]
 q_diags = [True, False]
+# q_diags = [False]
 
 # SVGP.predict_f variants
 full_covs = [True, False]
+# full_covs = [True]
 # TODO test full_output_covs=True
 # full_output_covs = [True, False]
 full_output_covs = [False]
+
+
+# SVGP.predict_f_samples variants
+num_samples = 2
 
 
 class TestSVGP(chex.TestCase):
@@ -95,9 +102,6 @@ class TestSVGP(chex.TestCase):
 
         var_predict_f = self.variant(predict_f)
         mean, cov = var_predict_f(params, Xnew)
-        print("mean")
-        print(mean.shape)
-        print(cov.shape)
 
         if not full_output_cov:
             assert mean.ndim == 2
@@ -109,9 +113,21 @@ class TestSVGP(chex.TestCase):
                 assert cov.shape[1] == cov.shape[2] == num_data
             else:
                 assert cov.ndim == 2
-                assert cov.ndim == 2
                 assert cov.shape[0] == num_data
                 assert cov.shape[1] == output_dim
+        else:
+            raise NotImplementedError("Need to add tests for full_output_cov=True")
+
+        def predict_f_samples(params, Xnew):
+            return svgp.predict_f_samples(params, key, Xnew, num_samples, full_cov)
+
+        var_predict_f_samples = self.variant(predict_f_samples)
+        samples = var_predict_f_samples(params, Xnew)
+        if not full_output_cov:
+            assert samples.ndim == 3
+            assert samples.shape[0] == num_samples
+            assert samples.shape[1] == num_data
+            assert samples.shape[2] == output_dim
         else:
             raise NotImplementedError("Need to add tests for full_output_cov=True")
 
