@@ -51,7 +51,7 @@ class GPModel(Module, abc.ABC):
     ) -> MeanAndCovariance:
         """Compute mean and (co)variance of latent function at Xnew.
 
-        :param Xnew: inputs with shape [num_test, input_dim]
+        :param Xnew: inputs with shape [num_data, input_dim]
         :param full_cov:
             If True, draw correlated samples over Xnew. Computes the Cholesky over the
             dense covariance matrix of size [num_data, num_data].
@@ -59,11 +59,11 @@ class GPModel(Module, abc.ABC):
         :param full_output_cov:
             TODO Not implemented
         :returns: tuple of Tensors (mean, variance),
-            means.shape == [num_test, output_dim],
+            means.shape == [num_data, output_dim],
             If full_cov=True and full_output_cov=False,
-                var.shape == [output_dim, num_test, num_test]
+                var.shape == [output_dim, num_data, num_data]
             If full_cov=False,
-                var.shape == [num_test, output_dim]
+                var.shape == [num_data, output_dim]
         """
         raise NotImplementedError
 
