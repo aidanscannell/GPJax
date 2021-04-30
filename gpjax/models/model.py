@@ -4,18 +4,12 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
-
-from gpjax.conditionals import base_conditional
-from gpjax.covariances import (
-    hessian_cov_fn_wrt_X1X1,
-    hessian_rbf_cov_fn_wrt_X1X1,
-    jacobian_cov_fn_wrt_X1,
-)
+from gpjax.base import Module
 from gpjax.custom_types import InputData, MeanAndCovariance
 from gpjax.kernels import Kernel
-from gpjax.mean_functions import MeanFunction, Zero
-from gpjax.base import Module
 from gpjax.likelihoods import Likelihood
+from gpjax.mean_functions import MeanFunction, Zero
+from gpjax.utilities.ops import sample_mvn_diag, sample_mvn
 
 jax.config.update("jax_enable_x64", True)
 
@@ -66,6 +60,44 @@ class GPModel(Module, abc.ABC):
                 var.shape == [num_data, output_dim]
         """
         raise NotImplementedError
+
+    def predict_f_samples(
+        self,
+        params: dict,
+        key,
+        Xnew: InputData,
+        num_samples: int = 1,
+        full_cov: bool = False,
+        full_output_cov: bool = False,
+    ) -> MeanAndCovariance:
+        """Draw samples from latent function posterior at Xnew.
+
+        :param params: dict of associated params
+        :param key : jax.random.PRNGKey()
+        :param Xnew: inputs with shape [num_data, input_dim]
+        :param num_samples: number of samples to draw
+        :param full_cov:
+            If True, draw correlated samples over Xnew. Computes the Cholesky over the
+            dense covariance matrix of size [num_data, num_data].
+            If False, draw samples that are uncorrelated over the inputs.
+        :param full_output_cov:
+            TODO Not implemented
+        :returns: samples with shape [num_samples, num_data, output_dim]
+        """
+        if full_output_cov:
+            raise NotImplementedError("full_output_cov=True is not implemented yet.")
+        f_mean, f_cov = self.predict_f(params, Xnew, full_cov, full_output_cov)
+
+        if f_cov.ndim == 3:
+            print("here")
+            print(f_mean.shape)
+            print(f_cov.shape)
+            samples = sample_mvn(key, f_mean.T, f_cov, num_samples)
+        elif f_cov.ndim == 2:
+            samples = sample_mvn_diag(key, f_mean.T, jnp.sqrt(f_cov.T), num_samples)
+        else:
+            raise NotImplementedError("Bad dimension for f_cov")
+        return jnp.transpose(samples, [1, 2, 0])
 
     def predict_y(
         self,
