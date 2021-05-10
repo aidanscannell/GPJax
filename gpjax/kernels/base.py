@@ -5,17 +5,10 @@ from typing import Callable, List, Optional
 import jax
 import jax.numpy as jnp
 import tensor_annotations.jax as tjax
-from gpjax.custom_types import (
-    Covariance,
-    Input1,
-    Input2,
-    InputData,
-    InputDim,
-    SingleInput,
-)
+from gpjax.custom_types import Covariance, Input1, Input2, InputDim, SingleInput
 
 
-def kernel_decorator(
+def covariance_decorator(
     kern_fn: Callable[[dict, SingleInput, Optional[SingleInput]], tjax.Array1]
 ) -> Callable[[dict, Input1, Input2], Covariance]:
     """Decorator that converts a kernel function to handle all input shapes.
@@ -42,8 +35,12 @@ def kernel_decorator(
     def wrapper(params: dict, X1: Input1, X2: Input2 = None) -> Covariance:
         if X2 is None:
             X2 = X1
-        if X1.ndim > 1:
+        if X1.ndim > 1 and X2.ndim > 1:
             return batched_covariance_map(params, kern_fn, X1, X2)
+        elif X1.ndim > 1:
+            return single_batched_covariance_map(params, kern_fn, X1, X2)
+        elif X2.ndim > 1:
+            return single_batched_covariance_map(params, kern_fn, X2, X1)
         else:
             return kern_fn(params, X1, X2)
 
@@ -71,6 +68,27 @@ def batched_covariance_map(
     if X2 is not None:
         assert X1.shape[-1] == X2.shape[-1] and X1.ndim == X2.ndim == 2
     return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(params, xi, xj))(X2))(X1)
+
+
+@jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(d)->(n)")
+def single_batched_covariance_map(
+    params: dict,
+    kernel: Callable[[dict, Input1, Input2], Covariance],
+    X1: Input1,
+    x2: Input2 = None,
+) -> Covariance:
+    """Compute covariance matrix from a covariance function and two input vectors.
+
+    This method handles leading batch dimensions.
+
+    :param params: dictionary of required parameters for kernel
+    :param kernel: callable covariance function that maps pairs of data points to scalars.
+                    e.g. Kernel(params, x1, x2)
+    :param X1: Array of inputs [..., N1, input_dim]
+    :param x2: single input array [..., input_dim]
+    :returns: covariance matrix [..., N1]
+    """
+    return jax.vmap(lambda xi: kernel(params, xi, x2))(X1)
 
 
 class Kernel(abc.ABC):
