@@ -21,6 +21,7 @@ mypy = "^0.812"
 multidispatch = "^0.2"
 dataclasses = { version = "*", python = "^3.6.0" }
 tensor-annotations = {git = "https://github.com/deepmind/tensor_annotations"}
+torch = "^1.8.1"  # used for datasets in datasets.py
 tfp-nightly = "^0.13.0-alpha.20210510"
 
 [tool.poetry.dev-dependencies]
