@@ -12,10 +12,8 @@ def inv_probit(x):
 
 
 class Bernoulli(ScalarLikelihood):
-    # def __init__(self, invlink=inv_probit, **kwargs):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # self.invlink = invlink
 
     def get_params(self):
         return {}
@@ -26,7 +24,7 @@ class Bernoulli(ScalarLikelihood):
     def _scalar_log_prob(self, F, Y):
         return logdensities.bernoulli(Y, self.inv_link(F))
 
-    def predict_mean_and_var(self, params, Fmu, Fvar):
+    def predict_mean_and_var(self, params: dict, Fmu, Fvar):
         p = self.inv_link(Fmu / jnp.sqrt(1 + Fvar))
         return p, p - jnp.square(p)
 
@@ -34,12 +32,12 @@ class Bernoulli(ScalarLikelihood):
         p = self.predict_mean_and_var(Fmu, Fvar)[0]
         return jnp.sum(logdensities.bernoulli(Y, p), axis=-1)
 
-    def _conditional_mean(self, F):
+    def conditional_mean(self, params: dict, F):
         return self.inv_link(F)
 
     def _conditional_variance(self, F):
         p = self.conditional_mean(F)
         return p - (p ** 2)
 
-    def variational_expectations(self, params, Fmu, Fvar, Y):
+    def variational_expectations(self, params: dict, Fmu, Fvar, Y):
         return gauss_hermite_quadrature(self._scalar_log_prob, Fmu, Fvar, Y=Y)
