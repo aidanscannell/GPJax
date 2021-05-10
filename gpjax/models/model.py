@@ -13,9 +13,6 @@ from gpjax.utilities.ops import sample_mvn_diag, sample_mvn
 
 jax.config.update("jax_enable_x64", True)
 
-# create types
-InducingVariable = None
-
 
 class GPModel(Module, abc.ABC):
     def __init__(
@@ -112,10 +109,10 @@ class GPModel(Module, abc.ABC):
                 "The predict_y method currently supports only the argument values full_cov=False and full_output_cov=False"
             )
 
-        f_mean, f_var = self.predict_f(
+        f_mean, f_cov = self.predict_f(
             params, Xnew, full_cov=full_cov, full_output_cov=full_output_cov
         )
-        return self.likelihood.predict_mean_and_var(params["likelihood"], f_mean, f_var)
+        return self.likelihood.predict_mean_and_var(params["likelihood"], f_mean, f_cov)
 
 
 class GPR(GPModel):
