@@ -17,8 +17,8 @@ class Gaussian(ScalarLikelihood):
 
     def __init__(self, variance=1.0, variance_lower_bound=1e-6):
         """
-        :param variance: The noise variance; greater than variance_lower_bound
-        :param variance_lower_bound: The lower (exclusive) bound of variance
+        :param variance: the noise variance; greater than variance_lower_bound
+        :param variance_lower_bound: lower bound on the noise variance
         """
         super().__init__()
 
