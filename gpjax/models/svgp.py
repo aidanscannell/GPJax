@@ -99,15 +99,12 @@ class SVGP(GPModel):
             ]
         ] = None,
         whiten: Optional[bool] = True,
-        # num_data=None,
-        # jitter: Optional[jnp.float64] = 1e-6,
     ):
         super().__init__(
             kernel=kernel,
             likelihood=likelihood,
             mean_function=mean_function,
             num_latent_gps=num_latent_gps,
-            # jitter=jitter,
         )
         self.whiten = whiten
         self.q_diag = q_diag
@@ -162,42 +159,42 @@ class SVGP(GPModel):
             whiten=self.whiten,
         )
 
-    # def maximum_log_likelihood_objective(self, data: RegressionData) -> tf.Tensor:
-    #     return self.elbo(data)
-
-    def elbo(
+    def build_elbo(
         self,
-        params: dict,
-        X: tjax.Array2[Batch, InputDim],
-        Y: tjax.Array2[Batch, OutputDim],
+        constrain_params: Callable,
+        num_data: Optional[int] = None,
     ) -> jnp.float64:
         """Evidence Lower BOund
 
         Variational lower bound (the evidence lower bound or ELBO) on the log
         marginal likelihood of the model.
         """
-        kl = self.prior_kl(params)
-        print("kl")
-        print(kl)
-        f_mean, f_var = self.predict_f(params, X, full_cov=False, full_output_cov=False)
-        print("f_mean")
-        print(f_mean.shape)
-        print(f_var.shape)
-        var_exp = self.likelihood.variational_expectations(
-            params["likelihood"], f_mean, f_var, Y
-        )
-        print("var_exp")
-        print(var_exp.shape)
-        # if self.num_data is not None:
-        #     num_data = tf.cast(self.num_data, kl.dtype)
-        #     minibatch_size = tf.cast(tf.shape(X)[0], kl.dtype)
-        #     scale = num_data / minibatch_size
-        # else:
-        #     scale = tf.cast(1.0, kl.dtype)
-        var_exp_sum = jnp.sum(var_exp)
-        scale = 1.0
-        print(var_exp_sum.shape)
-        return jnp.sum(var_exp) * scale - kl
+
+        def elbo(
+            params: dict,
+            data: Tuple[tjax.Array2[Batch, InputDim], tjax.Array2[Batch, OutputDim]],
+        ):
+            X, Y = data
+            params = constrain_params(params)
+            kl = self.prior_kl(params)
+            f_mean, f_var = self.predict_f(
+                params, X, full_cov=False, full_output_cov=False
+            )
+            var_exp = self.likelihood.variational_expectations(
+                params["likelihood"], f_mean, f_var, Y
+            )
+            # print("var_exp")
+            # print(var_exp.shape)
+            var_exp_sum = jnp.sum(var_exp)
+            if num_data is not None:
+                minibatch_size = X.shape[0]
+                scale = num_data / minibatch_size
+            else:
+                scale = 1.0
+            # print(var_exp_sum.shape)
+            return jnp.sum(var_exp) * scale - kl
+
+        return elbo
 
     def predict_f(
         self,
@@ -215,40 +212,3 @@ class SVGP(GPModel):
             full_output_cov,
             self.whiten,
         )
-
-
-def elbo(
-    params: dict,
-    X: tjax.Array2[Batch, InputDim],
-    Y: tjax.Array2[Batch, OutputDim],
-    prior_kl: Callable,
-    predict_f: Callable,
-    likelihood: Likelihood,
-) -> jnp.float64:
-    """Evidence Lower BOund
-
-    Variational lower bound (the evidence lower bound or ELBO) on the log
-    marginal likelihood of the model.
-    """
-    kl = prior_kl(params)
-    print("kl")
-    print(kl)
-    f_mean, f_var = predict_f(params, X, full_cov=False, full_output_cov=False)
-    print("f_mean")
-    print(f_mean.shape)
-    print(f_var.shape)
-    var_exp = likelihood.variational_expectations(
-        params["likelihood"], f_mean, f_var, Y
-    )
-    print("var_exp")
-    print(var_exp.shape)
-    # if self.num_data is not None:
-    #     num_data = tf.cast(self.num_data, kl.dtype)
-    #     minibatch_size = tf.cast(tf.shape(X)[0], kl.dtype)
-    #     scale = num_data / minibatch_size
-    # else:
-    #     scale = tf.cast(1.0, kl.dtype)
-    var_exp_sum = jnp.sum(var_exp)
-    scale = 1.0
-    print(var_exp_sum.shape)
-    return jnp.sum(var_exp) * scale - kl
