@@ -80,16 +80,8 @@ def single_output_conditional(
         kernel(kernel_params, X, X)
         + jnp.eye(X.shape[-2], dtype=X.dtype) * default_jitter()
     )  # [..., M, M]
-    print("insidce single output cond")
-    print(Kmm.shape)
-    print(X.shape)
-    print(jnp.eye(X.shape[-2], dtype=X.dtype).shape)
     Kmn = kernel(kernel_params, X, Xnew)  # [M, N]
     Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [N, N]
-    # Knn = (
-    #     kernel(kernel_params, Xnew, full_cov=full_cov)
-    #     + jnp.eye(Xnew.shape[-2], dtype=X.dtype) * default_jitter()
-    # )  # [N, N]
 
     # setup axis containing output dim which are to be mapped over
     if full_cov:  # [output_dim, num_data, num_data]
