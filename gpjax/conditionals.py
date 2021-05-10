@@ -285,7 +285,7 @@ def base_conditional_with_lm(
     if full_cov:
         fvar = Knn - jnp.matmul(A.T, A)
     else:
-        fvar = Knn - jnp.sum(jnp.square(A), -2)
+        fvar = Knn - jnp.sum(jnp.square(A), 0)
 
     # another backsubstitution in the unwhitened case
     if not white:
@@ -306,6 +306,6 @@ def base_conditional_with_lm(
         if full_cov:
             fvar = fvar + LTA.T @ LTA  # [N, N]
         else:
-            fvar = fvar + jnp.sum(jnp.square(LTA), -2)  # [N]
+            fvar = fvar + jnp.sum(jnp.square(LTA), 0)  # [N]
 
     return fmean, fvar
