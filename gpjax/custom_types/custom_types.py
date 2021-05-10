@@ -5,7 +5,7 @@ import tensor_annotations.jax as tjax
 from jax import numpy as jnp
 from tensor_annotations.axes import Batch
 
-from .shapes import N1, N2, InputDim, NumData, OutputDim
+from .shapes import N1, N2, InputDim, NumData, OutputDim, NumInducing
 
 # MeanAndVariance = Tuple[jnp.ndarray, jnp.ndarray]
 # InputData = jnp.ndarray
@@ -71,3 +71,5 @@ Variance = tjax.Array2[NumData, OutputDim]
 # Covariance = tjax.Array3[OutputDim, NumData, NumData]
 # MeanAndVariance = Union[Tuple[Mean, Variance], Tuple[Mean, Covariance]]
 MeanAndCovariance = Union[Tuple[Mean, Variance], Tuple[Mean, Covariance]]
+
+InducingVariable = tjax.Array2[NumInducing, InputDim]
