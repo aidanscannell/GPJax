@@ -8,7 +8,4 @@ def gaussian(x, mu, var):
 
 def bernoulli(x, p):
     pred = x == 1
-    print("pred")
-    print(pred)
     return jnp.log(jnp.where(pred, p, 1 - p))
-    # return jnp.log(tf.where(tf.equal(x, 1), p, 1 - p))
