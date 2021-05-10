@@ -1,61 +1,45 @@
 #!/usr/bin/env python3
 import jax.numpy as jnp
-from tensorflow_probability.substrates import jax as tfp
-
-from gpjax import logdensities
-from gpjax.config import Config
-from gpjax.utilities.bijectors import positive, softplus
-from gpjax.likelihoods.base import ScalarLikelihood
 from gpjax import logdensities
 from gpjax.config import default_float
+from gpjax.likelihoods.base import ScalarLikelihood
+from tensorflow_probability.substrates import jax as tfp
 
-# from .utils import inv_probit
+tfb = tfp.bijectors
 
 
 class Gaussian(ScalarLikelihood):
-    """
-    The Gaussian likelihood is appropriate where uncertainties associated with
-    the data are believed to follow a normal distribution, with constant
-    variance.
+    """Gaussian likelihood with constant variance
 
-    Very small uncertainties can lead to numerical instability during the
-    optimization process. A lower bound of 1e-6 is therefore imposed on the
-    likelihood variance by default.
+    Small variances can lead to numerical instability during optimization so
+    a lower bound of 1e-6 is imposed on the variance by default.
     """
 
-    DEFAULT_VARIANCE_LOWER_BOUND = 1e-6
-
-    def __init__(
-        self, variance=1.0, variance_lower_bound=DEFAULT_VARIANCE_LOWER_BOUND, **kwargs
-    ):
+    def __init__(self, variance=1.0, variance_lower_bound=1e-6):
         """
-        :param variance: The noise variance; must be greater than
-            ``variance_lower_bound``.
-        :param variance_lower_bound: The lower (exclusive) bound of ``variance``.
-        :param kwargs: Keyword arguments forwarded to :class:`ScalarLikelihood`.
+        :param variance: The noise variance; greater than variance_lower_bound
+        :param variance_lower_bound: The lower (exclusive) bound of variance
         """
-        super().__init__(**kwargs)
+        super().__init__()
 
         if variance <= variance_lower_bound:
             raise ValueError(
                 f"The variance of the Gaussian likelihood must be strictly greater than {variance_lower_bound}"
             )
-        variance = jnp.array([variance], dtype=default_float())
-        self._variance = variance
-        # self.bijector= tfp.util.TransformedVariable(
-        #     variance, bijector=positive(lower=variance_lower_bound)
-        # )
-
-    @property
-    def variance(self):
-        return softplus(self._variance)
+        self.variance = jnp.array([variance], dtype=default_float())
+        self.positive_bijector = tfb.Chain(
+            [
+                tfb.Shift(jnp.array(variance_lower_bound, dtype=default_float())),
+                tfb.Softplus(),
+            ]
+        )
 
     def get_params(self) -> dict:
         return {"variance": self.variance}
 
     def get_transforms(self) -> dict:
-        return {"variance": Config.positive_bijector}
-        # return {"variance": tfp.bijectors.Softplus()}
+        return {"variance": self.positive_bijector}
+        # return {"variance": Config.positive_bijector}
 
     def _scalar_log_prob(self, params: dict, F, Y):
         return logdensities.gaussian(Y, F, params["variance"])
@@ -66,7 +50,7 @@ class Gaussian(ScalarLikelihood):
     # def conditional_variance(self, F):
     #     return tf.fill(tf.shape(F), tf.squeeze(self.variance))
 
-    def predict_mean_and_var(self, params, Fmu, Fvar):
+    def predict_mean_and_var(self, params: dict, Fmu, Fvar):
         return Fmu, Fvar + params["variance"]
 
     # def predict_log_density(self, Fmu, Fvar, Y):
