@@ -39,24 +39,21 @@ class Gaussian(ScalarLikelihood):
 
     def get_transforms(self) -> dict:
         return {"variance": self.positive_bijector}
-        # return {"variance": Config.positive_bijector}
 
     def _scalar_log_prob(self, params: dict, F, Y):
         return logdensities.gaussian(Y, F, params["variance"])
 
-    # def conditional_mean(self, F):  # pylint: disable=R0201
-    #     return tf.identity(F)
+    def conditional_mean(self, F):
+        return jnp.identity(F)
 
-    # def conditional_variance(self, F):
-    #     return tf.fill(tf.shape(F), tf.squeeze(self.variance))
+    def conditional_variance(self, params: dict, F):
+        return jnp.fill(jnp.shape(F), jnp.squeeze(params["variance"]))
 
     def predict_mean_and_var(self, params: dict, Fmu, Fvar):
         return Fmu, Fvar + params["variance"]
 
-    # def predict_log_density(self, Fmu, Fvar, Y):
-    #     return tf.reduce_sum(
-    #         logdensities.gaussian(Y, Fmu, Fvar + self.variance), axis=-1
-    #     )
+    def predict_log_density(self, params: dict, Fmu, Fvar, Y):
+        return jnp.sum(logdensities.gaussian(Y, Fmu, Fvar + param["variance"]), axis=-1)
 
     def variational_expectations(self, params, Fmu, Fvar, Y):
         variance = params["variance"]
