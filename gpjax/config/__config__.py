@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 
+tfb = tfp.bijectors
+
 
 @dataclass(frozen=True)
 class Config:
@@ -21,7 +23,9 @@ class Config:
     int: type = jnp.int64
     float: type = jnp.float64
     jitter: float = 1e-6
-    positive_bijector: tfp.bijectors.Bijector = tfp.bijectors.Softplus
+    positive_bijector: tfp.bijectors.Bijector = tfb.Chain(
+        [tfb.Shift(jnp.array([1e-6], dtype=jnp.float64)), tfb.Softplus()]
+    )
     positive_minimum: float = 0.0
 
 
