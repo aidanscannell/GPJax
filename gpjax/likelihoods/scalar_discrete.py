@@ -18,6 +18,9 @@ class Bernoulli(ScalarLikelihood):
     def get_params(self):
         return {}
 
+    def get_transforms(self):
+        return {}
+
     def inv_link(self, x):
         return inv_probit(x)
 
