@@ -142,3 +142,32 @@ class SquaredExponential(Stationary):
         :returns: covariance matrix
         """
         return squared_exponential_cov_fn(params, X1, X2)
+
+
+class Rectangle(Stationary):
+    def __init__(
+        self,
+        # width: Optional[Union[jnp.float64, tjax.Array1[InputDim]]] = jnp.array(
+        #     [1.0], dtype=default_float()
+        # ),
+        # height: Optional[jnp.float64] = 1.0,
+        lengthscales: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+            [1.0], dtype=default_float()
+        ),
+        variance: Optional[Union[jnp.float64, jnp.DeviceArray]] = jnp.array(
+            [1.0], dtype=default_float()
+        ),
+        name: Optional[str] = "Rectangle kernel",
+    ):
+        super().__init__(lengthscales=lengthscales, variance=variance, name=name)
+
+    @staticmethod
+    def K(params: dict, X1: Input1, X2: Input2 = None) -> Covariance:
+        """Evaluate squared exponential kernel between two inputs.
+
+        :param params: dictionary of required parameters for kernel
+        :param X1: Array of inputs [..., N1, input_dim]
+        :param X2: Optional array of inputs [..., N2, input_dim]
+        :returns: covariance matrix
+        """
+        return rectangle_cov_fn(params, X1, X2)
