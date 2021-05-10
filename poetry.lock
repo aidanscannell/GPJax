@@ -1064,26 +1064,6 @@ reference = "master"
 resolved_reference = "1ba5f56d470e78df7f243c3f0d8f9179c0e07990"
 
 [[package]]
-name = "tensorflow-probability"
-version = "0.12.1"
-description = "Probabilistic modeling and statistical inference in TensorFlow"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-cloudpickle = ">=1.3"
-decorator = "*"
-dm-tree = "*"
-gast = ">=0.3.2"
-numpy = ">=1.13.3"
-six = ">=1.10.0"
-
-[package.extras]
-jax = ["jax", "jaxlib"]
-tfds = ["tensorflow-datasets (>=2.2.0)"]
-
-[[package]]
 name = "terminado"
 version = "0.9.4"
 description = "Tornado websocket backend for the Xterm.js Javascript terminal emulator library."
@@ -1111,6 +1091,26 @@ python-versions = "*"
 test = ["pathlib2"]
 
 [[package]]
+name = "tfp-nightly"
+version = "0.13.0.dev20210510"
+description = "Probabilistic modeling and statistical inference in TensorFlow"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+cloudpickle = ">=1.3"
+decorator = "*"
+dm-tree = "*"
+gast = ">=0.3.2"
+numpy = ">=1.13.3"
+six = ">=1.10.0"
+
+[package.extras]
+jax = ["jax", "jaxlib"]
+tfds = ["tfds-nightly"]
+
+[[package]]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
@@ -1125,6 +1125,18 @@ description = "List processing tools and functional utilities"
 category = "main"
 optional = false
 python-versions = ">=3.5"
+
+[[package]]
+name = "torch"
+version = "1.8.1"
+description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
+category = "main"
+optional = false
+python-versions = ">=3.6.2"
+
+[package.dependencies]
+numpy = "*"
+typing-extensions = "*"
 
 [[package]]
 name = "tornado"
@@ -1202,7 +1214,7 @@ notebook = ">=4.4.1"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "516604c966960df9e0cdc633a0a2384392e77f92d3a72bf2ecdb58123ae62a6a"
+content-hash = "ad421965c7a7f5588f0916b510f9e03d9aa4fc97977dee70f4b85f70bccb38f2"
 
 [metadata.files]
 absl-py = [
@@ -1939,9 +1951,6 @@ six = [
     {file = "six-1.15.0.tar.gz", hash = "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259"},
 ]
 tensor_annotations = []
-tensorflow-probability = [
-    {file = "tensorflow_probability-0.12.1-py2.py3-none-any.whl", hash = "sha256:f148a876671f132c931275e60156892326dcf148c7a0ea2959e7714776788fb0"},
-]
 terminado = [
     {file = "terminado-0.9.4-py3-none-any.whl", hash = "sha256:daed77f9fad7b32558fa84b226a76f45a02242c20813502f36c4e1ade6d8f1ad"},
     {file = "terminado-0.9.4.tar.gz", hash = "sha256:9a7dbcfbc2778830eeb70261bf7aa9d98a3eac8631a3afe3febeb57c12f798be"},
@@ -1950,6 +1959,9 @@ testpath = [
     {file = "testpath-0.4.4-py2.py3-none-any.whl", hash = "sha256:bfcf9411ef4bf3db7579063e0546938b1edda3d69f4e1fb8756991f5951f85d4"},
     {file = "testpath-0.4.4.tar.gz", hash = "sha256:60e0a3261c149755f4399a1fff7d37523179a70fdc3abdf78de9fc2604aeec7e"},
 ]
+tfp-nightly = [
+    {file = "tfp_nightly-0.13.0.dev20210510-py2.py3-none-any.whl", hash = "sha256:b7d7fcb388f313b36574d2ab137d415370917027d0e1d99c2836a642f18cb07a"},
+]
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
     {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
@@ -1957,6 +1969,24 @@ toml = [
 toolz = [
     {file = "toolz-0.11.1-py3-none-any.whl", hash = "sha256:1bc473acbf1a1db4e72a1ce587be347450e8f08324908b8a266b486f408f04d5"},
     {file = "toolz-0.11.1.tar.gz", hash = "sha256:c7a47921f07822fe534fb1c01c9931ab335a4390c782bd28c6bcc7c2f71f3fbf"},
+]
+torch = [
+    {file = "torch-1.8.1-cp36-cp36m-manylinux1_x86_64.whl", hash = "sha256:f23eeb1a48cc39209d986c418ad7e02227eee973da45c0c42d36b1aec72f4940"},
+    {file = "torch-1.8.1-cp36-cp36m-manylinux2014_aarch64.whl", hash = "sha256:4ace9c5bb94d5a7b9582cd089993201658466e9c59ff88bd4e9e08f6f072d1cf"},
+    {file = "torch-1.8.1-cp36-cp36m-win_amd64.whl", hash = "sha256:6ffa1e7ae079c7cb828712cb0cdaae5cc4fb87c16a607e6d14526b62c20bcc17"},
+    {file = "torch-1.8.1-cp36-none-macosx_10_9_x86_64.whl", hash = "sha256:16f2630d9604c4ee28ea7d6e388e2264cd7bc6031c6ecd796bae3f56b5efa9a3"},
+    {file = "torch-1.8.1-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:95b7bbbacc3f28fe438f418392ceeae146a01adc03b29d44917d55214ac234c9"},
+    {file = "torch-1.8.1-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:55137feb2f5a0dc7aced5bba690dcdb7652054ad3452b09a2bbb59f02a11e9ff"},
+    {file = "torch-1.8.1-cp37-cp37m-win_amd64.whl", hash = "sha256:8ad2252bf09833dcf46a536a78544e349b8256a370e03a98627ebfb118d9555b"},
+    {file = "torch-1.8.1-cp37-none-macosx_10_9_x86_64.whl", hash = "sha256:1388b30fbd262c1a053d6c9ace73bb0bd8f5871b4892b6f3e02d1d7bc9768563"},
+    {file = "torch-1.8.1-cp38-cp38-manylinux1_x86_64.whl", hash = "sha256:e7ad1649adb7dc2a450e70a3e51240b84fa4746c69c8f98989ce0c254f9fba3a"},
+    {file = "torch-1.8.1-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:3e4190c04dfd89c59bad06d5fe451446643a65e6d2607cc989eb1001ee76e12f"},
+    {file = "torch-1.8.1-cp38-cp38-win_amd64.whl", hash = "sha256:5c2e9a33d44cdb93ebd739b127ffd7da786bf5f740539539195195b186a05f6c"},
+    {file = "torch-1.8.1-cp38-none-macosx_10_9_x86_64.whl", hash = "sha256:c6ede2ae4dcd8214b63e047efabafa92493605205a947574cf358216ca4e440a"},
+    {file = "torch-1.8.1-cp39-cp39-manylinux1_x86_64.whl", hash = "sha256:ce7d435426f3dd14f95710d779aa46e9cd5e077d512488e813f7589fdc024f78"},
+    {file = "torch-1.8.1-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:a50ea8ed900927fb30cadb63aa7a32fdd59c7d7abe5012348dfbe35a8355c083"},
+    {file = "torch-1.8.1-cp39-cp39-win_amd64.whl", hash = "sha256:dac4d10494e74f7e553c92d7263e19ea501742c4825ddd26c4decfa27be95981"},
+    {file = "torch-1.8.1-cp39-none-macosx_10_9_x86_64.whl", hash = "sha256:225ee4238c019b28369c71977327deeeb2bd1c6b8557e6fcf631b8866bdc5447"},
 ]
 tornado = [
     {file = "tornado-6.1-cp35-cp35m-macosx_10_9_x86_64.whl", hash = "sha256:d371e811d6b156d82aa5f9a4e08b58debf97c302a35714f6f45e35139c332e32"},
