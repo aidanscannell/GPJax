@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-from typing import Optional, Union, Callable
+from typing import Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import tensor_annotations.jax as tjax
 import tensorflow_probability.substrates.jax as tfp
 from gpjax import kullback_leiblers
-from gpjax.conditionals import conditional
 from gpjax.config import default_float
 from gpjax.custom_types import (
+    InducingVariable,
     InputData,
     InputDim,
     MeanAndCovariance,
@@ -20,13 +20,9 @@ from gpjax.likelihoods import Likelihood
 from gpjax.mean_functions import MeanFunction
 from gpjax.models import GPModel
 from gpjax.prediction import gp_predict_f
-from gpjax.utilities.bijectors import positive, triangular
 from tensor_annotations.axes import Batch
 
 jax.config.update("jax_enable_x64", True)
-
-# create types
-InducingVariable = None
 
 
 def init_svgp_variational_parameters(
@@ -61,41 +57,28 @@ def init_svgp_variational_parameters(
 
     if q_sqrt is None:
         if q_diag:
-            q_sqrt = jnp.ones((num_inducing, num_latent_gps), dtype=default_float())
-            # q_sqrt = Parameter(ones, transform=positive())  # [M, P]
-            # q_sqrt = tfp.util.TransformedVariable(
-            #     q_sqrt, bijector=positive()
-            # )  # [M, P]
+            q_sqrt = jnp.ones(
+                (num_inducing, num_latent_gps), dtype=default_float()
+            )  # [M, P]
         else:
+            # q_sqrt = jnp.zeros(
+            #     (num_latent_gps, int(num_inducing ** 2 / 2 + num_inducing / 2)),
+            #     dtype=default_float(),
+            # )
+            # q_sqrt = jnp.array(q_sqrt)  # [P, M, M] after with fill_triangular transform
             q_sqrt = [
                 jnp.eye(num_inducing, dtype=default_float())
                 for _ in range(num_latent_gps)
             ]
-            q_sqrt = jnp.array(q_sqrt)
-            # q_sqrt = Parameter(q_sqrt, transform=triangular())  # [P, M, M]
-            # q_sqrt = tfp.bijectors.FillTriangular(upper=False)  # [P, M, M]
-            # q_sqrt = q_sqrt_bijector.forward(q_sqrt)
-            # q_sqrt = tfp.util.TransformedVariable(
-            #     q_sqrt,
-            #     bijector=tfp.bijectors.FillTriangular()
-            #     # q_sqrt, bijector=triangular()
-            # )  # [P, M, M]
+            q_sqrt = jnp.array(q_sqrt)  # [P, M, M]
     else:
         if q_diag:
             assert q_sqrt.ndim == 2
-            num_latent_gps = q_sqrt.shape[1]
-            # q_sqrt = Parameter(q_sqrt, transform=positive())  # [M, L|P]
-            # q_sqrt = tfp.util.TransformedVariable(
-            #     q_sqrt, bijector=positive()
-            # )  # [M, L|P]
+            num_latent_gps = q_sqrt.shape[1]  # [M, P]
         else:
             assert q_sqrt.ndim == 3
             num_latent_gps = q_sqrt.shape[0]
             num_inducing = q_sqrt.shape[1]
-            # q_sqrt = Parameter(q_sqrt, transform=triangular())  # [L|P, M, M]
-            # q_sqrt = tfp.util.TransformedVariable(
-            #     q_sqrt, bijector=triangular()
-            # )  # [L|P, M, M]
     return q_mu, q_sqrt
 
 
@@ -147,6 +130,26 @@ class SVGP(GPModel):
             "inducing_variable": self.inducing_variable,
             "q_mu": self.q_mu,
             "q_sqrt": self.q_sqrt,
+        }
+
+    def get_transforms(self) -> dict:
+        kernel_transforms = self.kernel.get_transforms()
+        likelihood_transforms = self.likelihood.get_transforms()
+        mean_function_transforms = self.mean_function.get_transforms()
+
+        if self.q_diag:
+            q_sqrt_transform = tfp.bijectors.Softplus()
+        else:
+            # q_sqrt_transform = tfp.bijectors.Softplus()
+            q_sqrt_transform = tfp.bijectors.Identity()
+
+        return {
+            "kernel": kernel_transforms,
+            "likelihood": likelihood_transforms,
+            "mean_function": mean_function_transforms,
+            "inducing_variable": tfp.bijectors.Identity(),
+            "q_mu": tfp.bijectors.Identity(),
+            "q_sqrt": q_sqrt_transform,
         }
 
     def prior_kl(self, params: dict) -> jnp.float64:
