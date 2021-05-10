@@ -4,6 +4,8 @@ from typing import Optional, Union
 
 import tensor_annotations.jax as tjax
 from gpjax.config import default_float
+import tensorflow_probability.substrates.jax as tfp
+from gpjax.config import default_float, Config
 from gpjax.custom_types import Covariance, Input1, Input2, InputDim
 from gpjax.kernels import Kernel, kernel_decorator
 from gpjax.kernels.distances import scaled_squared_euclidean_distance
@@ -56,6 +58,14 @@ class Stationary(Kernel, abc.ABC):
 
     def get_params(self) -> dict:
         return {"lengthscales": self.lengthscales, "variance": self.variance}
+
+    def get_transforms(self) -> dict:
+        return {
+            "lengthscales": Config.positive_bijector,
+            "variance": Config.positive_bijector
+            # "lengthscales": tfp.bijectors.Softplus(),
+            # "variance": tfp.bijectors.Softplus(),
+        }
 
 
 class SquaredExponential(Stationary):

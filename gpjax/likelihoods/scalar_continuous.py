@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 
 from gpjax import logdensities
+from gpjax.config import Config
 from gpjax.utilities.bijectors import positive, softplus
 from gpjax.likelihoods.base import ScalarLikelihood
 from gpjax import logdensities
@@ -51,6 +52,10 @@ class Gaussian(ScalarLikelihood):
 
     def get_params(self) -> dict:
         return {"variance": self.variance}
+
+    def get_transforms(self) -> dict:
+        return {"variance": Config.positive_bijector}
+        # return {"variance": tfp.bijectors.Softplus()}
 
     def _scalar_log_prob(self, params: dict, F, Y):
         return logdensities.gaussian(Y, F, params["variance"])

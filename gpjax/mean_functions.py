@@ -75,6 +75,11 @@ class Constant(MeanFunction):
     ) -> dict:
         return {"constant": self.c}
 
+    def get_transforms(
+        self,
+    ) -> dict:
+        return {"constant": tfp.bijectors.Identity()}
+
     @jax.partial(jax.jit, static_argnums=0)
     def __call__(self, params: dict, X: InputData) -> OutputData:
         """Returns constant with shape (X.shape[:-1], output_dim)
@@ -99,6 +104,11 @@ class Zero(Constant):
         self,
     ) -> dict:
         return None
+
+    def get_transforms(
+        self,
+    ) -> dict:
+        return {}
 
     @jax.partial(jax.jit, static_argnums=(0))
     def __call__(self, params: dict, X: InputData) -> OutputData:
