@@ -2,3 +2,8 @@
 __pycache__
 */__pycache__/*
 */superseded/*
+.coverage
+.ipynb_checkpoints
+Pipfile
+.envrc
+superseded
