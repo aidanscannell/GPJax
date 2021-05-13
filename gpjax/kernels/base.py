@@ -171,3 +171,6 @@ class Combination(Kernel):
 
     def get_params(self) -> dict:
         return jax.tree_map(lambda kern: kern.get_params(), self.kernels)
+
+    def get_transforms(self) -> dict:
+        return jax.tree_map(lambda kern: kern.get_transforms(), self.kernels)
