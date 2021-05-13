@@ -22,14 +22,20 @@ class Gaussian(ScalarLikelihood):
         """
         super().__init__()
 
-        if variance <= variance_lower_bound:
+        if jnp.any(variance <= variance_lower_bound):
             raise ValueError(
                 f"The variance of the Gaussian likelihood must be strictly greater than {variance_lower_bound}"
             )
-        self.variance = jnp.array([variance], dtype=default_float())
+        if not isinstance(variance, jnp.ndarray):
+            self.variance = jnp.array([variance], dtype=default_float())
+        else:
+            self.variance = variance
         self.positive_bijector = tfb.Chain(
             [
-                tfb.Shift(jnp.array(variance_lower_bound, dtype=default_float())),
+                tfb.Shift(
+                    jnp.ones(self.variance.shape, dtype=default_float())
+                    * variance_lower_bound
+                ),
                 tfb.Softplus(),
             ]
         )
