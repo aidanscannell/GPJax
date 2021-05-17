@@ -58,6 +58,45 @@ def conditional(
     return f_mean, f_cov
 
 
+@multifunction(None, None, None, Kernel)
+def _conditional(
+    kernel_params: dict,
+    xnew: tjax.Array1[InputDim],
+    X: tjax.Array2[NumInducing, InputDim],
+    # inducing_variable: InducingVariable,
+    # TODO implement dispatching for inducing variables
+    kernel: Kernel,
+    f: Union[tjax.Array2[NumInducing, OutputDim], tjax.Array1[NumInducing]],
+    full_cov: Optional[bool] = False,
+    full_output_cov: Optional[bool] = False,
+    q_sqrt: Optional[
+        Union[
+            tjax.Array3[OutputDim, NumInducing, NumInducing],
+            tjax.Array2[NumInducing, NumInducing],
+            tjax.Array2[NumInducing, OutputDim],
+            tjax.Array1[NumInducing],
+        ]
+    ] = None,
+    white: Optional[bool] = False,
+) -> MeanAndCovariance:
+    """GP Conditional for a single data point xnew [input_dim].
+
+    Multidispatch handles changing implementation for multioutput etc
+    """
+    f_mean, f_cov = single_output_conditional(
+        kernel_params,
+        xnew,
+        # inducing_variable,
+        X,
+        kernel,
+        f=f,
+        full_cov=full_cov,
+        q_sqrt=q_sqrt,
+        white=white,
+    )
+    return f_mean, f_cov
+
+
 def single_output_conditional(
     kernel_params: dict,
     Xnew: tjax.Array2[NumData, InputDim],
@@ -188,6 +227,70 @@ def independent_output_conditional(
         F_mean, F_cov = jax.vmap(
             base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
         )(Kmn, Kmm, Knn, f)
+    return F_mean, F_cov
+
+
+@_conditional.dispatch(None, None, None, SeparateIndependent)
+def _independent_output_conditional(
+    kernel_params: dict,
+    xnew: tjax.Array1[InputDim],
+    X: tjax.Array2[NumInducing, InputDim],
+    # inducing_variable: InducingVariable,
+    kernel: Union[Kernel, MultioutputKernel],
+    f: tjax.Array2[NumInducing, OutputDim],
+    q_sqrt: Optional[
+        Union[
+            tjax.Array3[OutputDim, NumInducing, NumInducing],
+            tjax.Array2[NumInducing, OutputDim],
+        ]
+    ] = None,
+    white: Optional[bool] = False,
+):
+    """Independent multi-output GP conditional for single input xnew [input_dim]"""
+    Kmm = (
+        kernel(kernel_params, X, X)
+        + jnp.eye(X.shape[-2], dtype=X.dtype) * default_jitter()
+    )  # [P, M, M]
+    Kmn = kernel(kernel_params, X, xnew)  # [P, M]
+    Knn = kernel(kernel_params, xnew, full_cov=False)  # [P]
+    # print("inside _independent_output_conditional")
+    # print(Kmm.shape)
+    # print(Kmn.shape)
+    # print(Knn.shape)
+
+    # setup axis containing output dim which are to be mapped over
+    out_axes = (-1, -1)
+    if q_sqrt is not None:
+        if q_sqrt.ndim == 2:
+            in_axes = (0, 0, 0, -1, -1)
+        elif q_sqrt.ndim == 3:
+            in_axes = (0, 0, 0, -1, 0)
+        else:
+            raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
+
+        def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_, q_sqrt_):
+            return base_conditional(
+                Kmn_, Kmm_, Knn_, f_, full_cov=False, q_sqrt=q_sqrt_, white=white
+            )
+
+        F_mean, F_cov = jax.vmap(
+            base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+        )(Kmn, Kmm, Knn, f, q_sqrt)
+    else:
+        raise NotImplementedError("need to implement this")
+
+        # def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_):
+        #     return base_conditional(
+        #         Kmn_, Kmm_, Knn_, f_, full_cov=full_cov, q_sqrt=q_sqrt, white=white
+        #     )
+
+        # if full_cov:
+        #     in_axes = (0, 0, 0, -1)
+        # else:
+        #     in_axes = (0, 0, -1, -1)
+        # F_mean, F_cov = jax.vmap(
+        #     base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+        # )(Kmn, Kmm, Knn, f)
     return F_mean, F_cov
 
 
