@@ -49,11 +49,16 @@ class Gaussian(ScalarLikelihood):
     def _scalar_log_prob(self, params: dict, F, Y):
         return logdensities.gaussian(Y, F, params["variance"])
 
-    def conditional_mean(self, F):
-        return jnp.identity(F)
+    def conditional_mean(self, params: dict, F):
+        # TODO this should make copy?
+        return F
+        # return jnp.identity(F)
 
     def conditional_variance(self, params: dict, F):
-        return jnp.fill(jnp.shape(F), jnp.squeeze(params["variance"]))
+        return params["variance"] * jnp.ones(F.shape)
+        # return params["variance"]
+        # return jnp.fill(jnp.shape(F), jnp.squeeze(params["variance"]))
+        # return jnp.fill(jnp.shape(F), jnp.squeeze(params["variance"]))
 
     def predict_mean_and_var(self, params: dict, Fmu, Fvar):
         return Fmu, Fvar + params["variance"]
