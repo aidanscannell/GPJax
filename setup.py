@@ -20,10 +20,10 @@ setup(
     python_requires='==3.*,>=3.8.0',
     author='Aidan Scannell',
     author_email='scannell.aidan@gmail.com',
-    packages=['GPJax.config', 'GPJax.custom_types', 'GPJax.kernels', 'GPJax.likelihoods', 'GPJax.models', 'GPJax.prediction', 'GPJax.utilities'],
+    packages=['GPJax.config', 'GPJax.custom_types', 'GPJax.kernels', 'GPJax.likelihoods', 'GPJax.models', 'GPJax.parameters', 'GPJax.prediction', 'GPJax.utilities'],
     package_dir={"": "."},
     package_data={},
-    install_requires=['chex==0.*,>=0.0.6', 'dataclasses; python_version == "3.*" and python_version >= "3.6.0"', 'jax==0.2.11', 'jaxlib==0.*,>=0.1.59', 'jupyter==1.*,>=1.0.0', 'matplotlib==3.*,>=3.3.2', 'multidispatch==0.*,>=0.2.0', 'mypy==0.*,>=0.812.0', 'numpy==1.*,>=1.19.4', 'tensor-annotations', 'tensorflow-probability==0.*,>=0.12.1'],
+    install_requires=['chex==0.*,>=0.0.7', 'dataclasses; python_version == "3.*" and python_version >= "3.6.0"', 'jax==0.*,>=0.2.13', 'jaxlib==0.*,>=0.1.59', 'jupyter==1.*,>=1.0.0', 'matplotlib==3.*,>=3.3.2', 'multidispatch==0.*,>=0.2.0', 'mypy==0.*,>=0.812.0', 'numpy==1.*,>=1.19.4', 'tensor-annotations', 'tfp-nightly==0.*,>=0.13.0.a20210510', 'torch==1.*,>=1.8.1'],
     dependency_links=['git+https://github.com/deepmind/tensor_annotations#egg=tensor-annotations'],
     extras_require={"dev": ["black==20.*,>=20.8.0.b1", "isort==5.*,>=5.6.4", "pyflakes==2.*,>=2.2.0", "pytest==6.*,>=6.2.2", "pytest-cov==2.*,>=2.11.1", "python-language-server==0.*,>=0.36.1"]},
 )
