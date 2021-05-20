@@ -1,40 +1,72 @@
 #!/usr/bin/env python3
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import jax
+import tensor_annotations.jax as tjax
 from gpjax.conditionals import base_conditional, conditional
-from gpjax.covariances import Kuu, hessian_cov_fn_wrt_X1X1, jacobian_cov_fn_wrt_X1
-from gpjax.mean_functions import MeanFunction
-from gpjax.custom_types import InputData, MeanAndCovariance, OutputData
+from gpjax.custom_types import (
+    InducingVariable,
+    InputData,
+    InputDim,
+    MeanAndCovariance,
+    OutputData,
+)
 from gpjax.kernels import Kernel
+
+from gpjax.mean_functions import MeanFunction
 from jax import numpy as jnp
 from jax import scipy as sp
 
 
-@jax.partial(jax.jit, static_argnums=(2, 3, 4, 5, 6))
+# @jax.partial(jax.jit, static_argnums=(2, 3, 4, 5, 6))
 def gp_predict_f(
     params: dict,
     Xnew: InputData,
+    X: Union[InputData, InducingVariable],
     kernel: Kernel,
     mean_function: MeanFunction,
+    f,
     full_cov: Optional[bool] = False,
     full_output_cov: Optional[bool] = False,
+    q_sqrt: Optional = None,
     whiten: Optional[bool] = False,
 ) -> MeanAndCovariance:
     mean, cov = conditional(
         params["kernel"],
         Xnew,
-        params["inducing_variable"],
+        X,
         kernel,
-        f=params["q_mu"],
+        f=f,
         full_cov=full_cov,
         full_output_cov=full_output_cov,
-        q_sqrt=params["q_sqrt"],
+        q_sqrt=q_sqrt,
         white=whiten,
     )
     return mean + mean_function(params["mean_function"], Xnew), cov
 
 
+# @jax.partial(jax.jit, static_argnums=(2, 3, 4, 5, 6))
+# def gp_predict_f(
+#     params: dict,
+#     Xnew: InputData,
+#     kernel: Kernel,
+#     mean_function: MeanFunction,
+#     full_cov: Optional[bool] = False,
+#     full_output_cov: Optional[bool] = False,
+#     whiten: Optional[bool] = False,
+# ) -> MeanAndCovariance:
+#     mean, cov = conditional(
+#         params["kernel"],
+#         Xnew,
+#         params["inducing_variable"],
+#         kernel,
+#         f=params["q_mu"],
+#         full_cov=full_cov,
+#         full_output_cov=full_output_cov,
+#         q_sqrt=params["q_sqrt"],
+#         white=whiten,
+#     )
+#     return mean + mean_function(params["mean_function"], Xnew), cov
 # def gp_predict(
 #     Xnew: InputData,
 #     X: InputData,

@@ -212,9 +212,22 @@ class SVGP(GPModel):
         return gp_predict_f(
             params,
             Xnew,
+            params["inducing_variable"],
             self.kernel,
             self.mean_function,
-            full_cov,
-            full_output_cov,
-            self.whiten,
+            f=params["q_mu"],
+            full_cov=full_cov,
+            full_output_cov=full_output_cov,
+            q_sqrt=params["q_sqrt"],
+            whiten=self.whiten,
+        )
+        # return gp_predict_f(
+        #     params,
+        #     Xnew,
+        #     self.kernel,
+        #     self.mean_function,
+        #     full_cov,
+        #     full_output_cov,
+        #     self.whiten,
+        # )
         )
