@@ -118,7 +118,10 @@ class SVGP(GPModel):
 
     def get_params(self):
         kernel_params = self.kernel.get_params()
-        likelihood_params = self.likelihood.get_params()
+        if self.likelihood is not None:
+            likelihood_params = self.likelihood.get_params()
+        else:
+            likelihood_params = {}
         mean_function_params = self.mean_function.get_params()
         return {
             "kernel": kernel_params,
@@ -131,7 +134,10 @@ class SVGP(GPModel):
 
     def get_transforms(self) -> dict:
         kernel_transforms = self.kernel.get_transforms()
-        likelihood_transforms = self.likelihood.get_transforms()
+        if self.likelihood is not None:
+            likelihood_transforms = self.likelihood.get_transforms()
+        else:
+            likelihood_transforms = {}
         mean_function_transforms = self.mean_function.get_transforms()
 
         if self.q_diag:
