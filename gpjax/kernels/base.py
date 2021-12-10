@@ -35,19 +35,21 @@ def covariance_decorator(
     def wrapper(params: dict, X1: Input1, X2: Input2 = None) -> Covariance:
         if X2 is None:
             X2 = X1
-        if X1.ndim > 1 and X2.ndim > 1:
-            return batched_covariance_map(params, kern_fn, X1, X2)
-        elif X1.ndim > 1:
-            return single_batched_covariance_map(params, kern_fn, X1, X2)
-        elif X2.ndim > 1:
-            return single_batched_covariance_map(params, kern_fn, X2, X1)
-        else:
-            return kern_fn(params, X1, X2)
+        # if X1.ndim > 1 and X2.ndim > 1:
+        #     return batched_covariance_map(params, kern_fn, X1, X2)
+        # elif X1.ndim > 1:
+        #     return single_batched_covariance_map(params, kern_fn, X1, X2)
+        # elif X2.ndim > 1:
+        #     return single_batched_covariance_map(params, kern_fn, X2, X1)
+        # else:
+        #     return kern_fn(params, X1, X2)
+        return batched_covariance_map(params, kern_fn, X1, X2)
+        # return kern_fn(params, X1, X2)
 
     return wrapper
 
 
-@jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
+# @jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
 def batched_covariance_map(
     params: dict,
     kernel: Callable[[dict, Input1, Input2], Covariance],
@@ -70,7 +72,7 @@ def batched_covariance_map(
     return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(params, xi, xj))(X2))(X1)
 
 
-@jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(d)->(n)")
+# @jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(d)->(n)")
 def single_batched_covariance_map(
     params: dict,
     kernel: Callable[[dict, Input1, Input2], Covariance],
@@ -170,7 +172,26 @@ class Combination(Kernel):
         self.num_kernels = len(kernels)
 
     def get_params(self) -> dict:
-        return jax.tree_map(lambda kern: kern.get_params(), self.kernels)
+        # return jax.tree_map(lambda kern: kern.get_params(), self.kernels)
+        # params_list =jax.tree_map(lambda kern: kern.get_params(), self.kernels)
+        keys = self.kernels[0].get_params().keys()
+        params = {}
+        for key in keys:
+            p = []
+            for kern in self.kernels:
+                p.append(kern.get_params()[key])
+            p = jnp.stack(p, 0)
+            params[key] = p
+        return params
 
     def get_transforms(self) -> dict:
-        return jax.tree_map(lambda kern: kern.get_transforms(), self.kernels)
+        # return jax.tree_map(lambda kern: kern.get_transforms(), self.kernels)
+        keys = self.kernels[0].get_transforms().keys()
+        params = {}
+        for key in keys:
+            p = []
+            for kern in self.kernels:
+                p.append(kern.get_params()[key])
+            p = jnp.stack(p, 0)
+            params[key] = p
+        return params

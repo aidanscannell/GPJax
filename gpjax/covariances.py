@@ -10,17 +10,17 @@ from gpjax.kernels import RBF, Kernel
 config.update("jax_enable_x64", True)
 
 
-def Kuu(inducing_inputs, kernel: Kernel, jitter: jnp.float64 = 1e-4):
-    Kzz = kernel.K(inducing_inputs, inducing_inputs)
-    Kzz += jitter * jnp.eye(len(inducing_inputs), dtype=Kzz.dtype)
-    return Kzz
+# def Kuu(inducing_inputs, kernel: Kernel, jitter: jnp.float64 = 1e-4):
+#     Kzz = kernel.K(inducing_inputs, inducing_inputs)
+#     Kzz += jitter * jnp.eye(len(inducing_inputs), dtype=Kzz.dtype)
+#     return Kzz
 
 
-def Kuf(inducing_inputs, kernel: Kernel, Xnew: InputData):
-    return kernel.K(inducing_inputs, Xnew)
+# def Kuf(inducing_inputs, kernel: Kernel, Xnew: InputData):
+#     return kernel.K(inducing_inputs, Xnew)
 
 
-def jacobian_cov_fn_wrt_X1(cov_fn, X1: InputData, X2: InputData) -> jnp.ndarray:
+def jacobian_cov_fn_wrt_X1(params, cov_fn, X1: InputData, X2: InputData) -> jnp.ndarray:
     """Calculate Jacobian of cov_fn(X1, X2) wrt to X1
 
     :param cov_fn: covariance function with signature cov_fn(x1, x2)
@@ -36,7 +36,12 @@ def jacobian_cov_fn_wrt_X1(cov_fn, X1: InputData, X2: InputData) -> jnp.ndarray:
     num_X2 = X2.shape[0]
 
     def jacobian_cov_fn_wrt_single_x1(x1):
-        jac = jacfwd(cov_fn, (0))(x1, X2)
+        def cov_fn_(x1, X2):
+            x1 = x1.reshape(1, -1)
+            return cov_fn(params, x1, X2)
+
+        jac = jacfwd(cov_fn_, (0))(x1, X2)
+        # jac = jacfwd(cov_fn, (0))(x1, X2)
         jac = jac.reshape(num_X2, input_dim)
         return jac
 
@@ -50,7 +55,7 @@ def jacobian_cov_fn_wrt_X1(cov_fn, X1: InputData, X2: InputData) -> jnp.ndarray:
     return jac
 
 
-def hessian_cov_fn_wrt_X1X1(cov_fn, X1: InputData) -> jnp.ndarray:
+def hessian_cov_fn_wrt_X1X1(params, cov_fn, X1: InputData) -> jnp.ndarray:
     """Calculate Hessian of cov_fn(X1, X1) wrt to X1
 
     :param cov_fn: covariance function with signature cov_fn(X1, X1)
@@ -65,7 +70,7 @@ def hessian_cov_fn_wrt_X1X1(cov_fn, X1: InputData) -> jnp.ndarray:
     def hessian_cov_fn_wrt_single_x1x1(x1: InputData):
         def cov_fn_single_input(x):
             x = x.reshape(1, -1)
-            return cov_fn(x)
+            return cov_fn(params, x)
 
         hessian = jax.hessian(cov_fn_single_input)(x1)
         hessian = hessian.reshape([input_dim, input_dim])

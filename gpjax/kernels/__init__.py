@@ -4,7 +4,7 @@ from gpjax.kernels.stationaries import (
     squared_exponential_cov_fn,
     SquaredExponential,
     Stationary,
-    Rectangle,
+    SigmoidRectangle,
 )
 
 RBF = SquaredExponential

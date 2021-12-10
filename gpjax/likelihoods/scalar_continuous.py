@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from gpjax import logdensities
 from gpjax.config import default_float
 from gpjax.likelihoods.base import ScalarLikelihood
+
 from tensorflow_probability.substrates import jax as tfp
 
 tfb = tfp.bijectors

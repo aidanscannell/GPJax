@@ -3,7 +3,8 @@ import abc
 
 import jax
 import jax.numpy as jnp
-from tensorflow_probability.substrates import jax as tfp
+
+# from tensorflow_probability.substrates import jax as tfp
 
 from gpjax.base import Module
 from gpjax.custom_types import InputData, OutputData
@@ -80,7 +81,7 @@ class Constant(MeanFunction):
     def get_transforms(
         self,
     ) -> dict:
-        return {"constant": tfp.bijectors.Identity()}
+        return {"constant": None}
 
     # @jax.partial(jax.jit, static_argnums=0)
     def __call__(self, params: dict, X: InputData) -> OutputData:

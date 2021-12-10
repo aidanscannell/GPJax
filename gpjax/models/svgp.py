@@ -4,6 +4,7 @@ from typing import Callable, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import tensor_annotations.jax as tjax
+
 import tensorflow_probability.substrates.jax as tfp
 from gpjax import kullback_leiblers
 from gpjax.config import default_float
@@ -19,7 +20,8 @@ from gpjax.kernels import Kernel
 from gpjax.likelihoods import Likelihood
 from gpjax.mean_functions import MeanFunction
 from gpjax.models import GPModel
-from gpjax.prediction import gp_predict_f
+from gpjax.prediction import gp_predict_f, _gp_predict_jacobian
+from gpjax.prediction.gp import gp_jacobian
 from tensor_annotations.axes import Batch
 
 jax.config.update("jax_enable_x64", True)
@@ -66,11 +68,13 @@ def init_svgp_variational_parameters(
             #     dtype=default_float(),
             # )
             # q_sqrt = jnp.array(q_sqrt)  # [P, M, M] after with fill_triangular transform
-            q_sqrt = [
+            q_cov = [
                 jnp.eye(num_inducing, dtype=default_float())
                 for _ in range(num_latent_gps)
             ]
-            q_sqrt = jnp.array(q_sqrt)  # [P, M, M]
+            q_cov = jnp.array(q_cov)  # [P, M, M]
+            bijector = tfp.bijectors.FillTriangular()
+            q_sqrt = bijector.inverse(q_cov)
     else:
         if q_diag:
             assert q_sqrt.ndim == 2
@@ -110,6 +114,11 @@ class SVGP(GPModel):
         self.q_diag = q_diag
 
         # init variational parameters
+        if self.q_diag:
+            self.q_sqrt_transform = tfp.bijectors.Softplus()
+        else:
+            # TODO this should be lower triangular?
+            self.q_sqrt_transform = tfp.bijectors.FillTriangular()
         self.inducing_variable = jnp.array(inducing_variable, dtype=default_float())
         self.num_inducing = self.inducing_variable.shape[-2]
         self.q_mu, self.q_sqrt = init_svgp_variational_parameters(
@@ -140,20 +149,22 @@ class SVGP(GPModel):
             likelihood_transforms = {}
         mean_function_transforms = self.mean_function.get_transforms()
 
-        if self.q_diag:
-            q_sqrt_transform = tfp.bijectors.Softplus()
-        else:
-            # q_sqrt_transform = tfp.bijectors.Softplus()
-            q_sqrt_transform = tfp.bijectors.Identity()
-
         return {
             "kernel": kernel_transforms,
             "likelihood": likelihood_transforms,
             "mean_function": mean_function_transforms,
-            "inducing_variable": tfp.bijectors.Identity(),
-            "q_mu": tfp.bijectors.Identity(),
-            "q_sqrt": q_sqrt_transform,
+            "inducing_variable": None,
+            "q_mu": None,
+            "q_sqrt": self.q_sqrt_transform,
         }
+        # return {
+        #     "kernel": kernel_transforms,
+        #     "likelihood": likelihood_transforms,
+        #     "mean_function": mean_function_transforms,
+        #     "inducing_variable": tfp.bijectors.Identity(),
+        #     "q_mu": tfp.bijectors.Identity(),
+        #     "q_sqrt": q_sqrt_transform,
+        # }
 
     def prior_kl(self, params: dict) -> jnp.float64:
         return kullback_leiblers.prior_kl(
@@ -181,7 +192,8 @@ class SVGP(GPModel):
             data: Tuple[tjax.Array2[Batch, InputDim], tjax.Array2[Batch, OutputDim]],
         ):
             X, Y = data
-            params = constrain_params(params)
+            if constrain_params is not None:
+                params = constrain_params(params)
             kl = self.prior_kl(params)
             f_mean, f_var = self.predict_f(
                 params, X, full_cov=False, full_output_cov=False
@@ -230,4 +242,48 @@ class SVGP(GPModel):
         #     full_output_cov,
         #     self.whiten,
         # )
+
+    def predict_jacobian(
+        self,
+        params: dict,
+        Xnew: InputData,
+        # full_cov: Optional[bool] = False,
+        # full_output_cov: Optional[bool] = False,
+    ) -> MeanAndCovariance:
+        return jax.vmap(self._predict_jacobian, in_axes=(None, 0))(params, Xnew)
+
+    def _predict_jacobian(
+        self,
+        params: dict,
+        xnew: InputData,
+        # full_cov: Optional[bool] = False,
+        # full_output_cov: Optional[bool] = False,
+    ) -> MeanAndCovariance:
+        # TODO make this work for multioutput
+        return _gp_predict_jacobian(
+            params,
+            xnew,
+            params["inducing_variable"],
+            self.kernel,
+            self.mean_function,
+            f=params["q_mu"],
+            full_cov=False,
+            full_output_cov=False,
+            # full_cov=full_cov,
+            # full_output_cov=full_output_cov,
+            q_sqrt=params["q_sqrt"],
+            whiten=self.whiten,
         )
+        # xnew = xnew.reshape(1, -1)
+        # return gp_jacobian(
+        #     params["kernel"],
+        #     xnew,
+        #     params["inducing_variable"],
+        #     kernels=self.kernel,
+        #     mean_funcs=self.mean_function,
+        #     f=params["q_mu"],
+        #     full_cov=False,
+        #     q_sqrt=params["q_sqrt"],
+        #     jitter=1e-6,
+        #     white=self.whiten,
+        # )

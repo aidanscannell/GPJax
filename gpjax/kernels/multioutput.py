@@ -31,16 +31,28 @@ from gpjax.utilities.ops import batched_diag, leading_transpose
 
 def separate_independent_cov_fn(
     params: dict,
-    kernels: List[Kernel],
+    # kernels: List[Kernel],
+    kernel: Kernel,
     X1: Input1,
     X2: Input2 = None,
-    full_cov: Optional[bool] = True,
-    full_output_cov: Optional[bool] = True,
+    full_cov: Optional[bool] = False,
+    full_output_cov: Optional[bool] = False,
 ) -> MultiOutputCovariance:
-    Kxxs = jax.tree_multimap(
-        lambda kern, params_: kern(params_, X1, X2, full_cov=full_cov), kernels, params
-    )
-    Kxxs = jnp.stack(Kxxs, axis=-1)  # [..., N1, N2, P] or [..., N1, P]
+    # Kxxs = jax.tree_multimap(
+    #     lambda kern, params_: kern(params_, X1, X2, full_cov=full_cov), kernels, params
+    # )
+
+    # def kern(params_):
+    #     return kernel(params_, X1, X2, full_cov)
+
+    Kxxs = jax.vmap(kernel, in_axes=(0, None, None, None))(params, X1, X2, full_cov)
+    # Kxxs = jax.tree_multimap(
+    #     lambda params_: kernel(params_, X1, X2, full_cov=full_cov), params
+    # )
+    # Kxxs = jnp.stack(Kxxs, axis=-1)  # [..., N1, N2, P] or [..., N1, P]
+    # Kxx1 = kernels[0](params[0], X1, X2, full_cov=full_cov)
+    # Kxx2 = kernels[1](params[1], X1, X2, full_cov=full_cov)
+    # Kxxs = jnp.stack([Kxx1, Kxx2], axis=-1)  # [..., N1, N2, P] or [..., N1, P]
     if full_output_cov:
         diag = batched_diag(Kxxs)  # [..., N1, N2, P, P] or # [..., N1, P, P]
         if full_cov:
@@ -49,9 +61,19 @@ def separate_independent_cov_fn(
     else:
         # TODO haven't checks this is stacked on right axis
         if full_cov:
-            return leading_transpose(Kxxs, [..., -1, -3, -2])  # [..., P, N1, N2]
+            # TODO these if statemts were a hacky quick fix
+            print("separate_ind_cov_fn")
+            print(Kxxs.shape)
+            # return jnp.transpose(Kxxs, [2, 0, 1])  # [..., P, N1, N2]
+            return Kxxs  # [..., P, N1, N2]
+            # if Kxxs.ndim > 2:
+            # return leading_transpose(Kxxs, [..., -1, -3, -2])  # [..., P, N1, N2]
+            # if Kxxs.ndim == 2:
+            # return Kxxs.T  # [P, N1]
+            # return leading_transpose(Kxxs, [..., -1, -3, -2])  # [..., P, N1, N2]
         else:
-            return Kxxs  # [..., N, P, P]
+            return jnp.transpose(Kxxs, [1, 0])  # [..., N, P]
+            # raise NotImplementedError()
 
 
 # def multi_output_covariance_map(params: dict, kernels: List[Kernel], X1, X2):
@@ -155,9 +177,14 @@ class MultioutputKernel(Kernel):
             )
         if not full_cov:
             return self.K_diag(
-                params, self.kernels, X1, full_output_cov=full_output_cov
+                params,
+                self.kernel_fn,
+                X1,
+                full_output_cov=full_output_cov
+                # params, self.kernels, X1, full_output_cov=full_output_cov
             )
-        return self.K(params, self.kernels, X1, X2, full_output_cov=full_output_cov)
+        return self.K(params, self.kernel_fn, X1, X2, full_output_cov=full_output_cov)
+        # return self.K(params, self.kernels, X1, X2, full_output_cov=full_output_cov)
         # return multi_output_covariance_map(params, self.kernels, X1, X2)
 
 
@@ -166,27 +193,41 @@ class SeparateIndependent(MultioutputKernel, Combination):
 
     def __init__(self, kernels: List[Kernel], name: Optional[str] = None):
         super().__init__(kernels=kernels, name=name)
+        self.kernel_fn = kernels[0]
 
     @staticmethod
     def K(
         params: dict,
-        kernels: Union[List[Kernel], Kernel],
+        # kernels: Union[List[Kernel], Kernel],
+        kernel: Kernel,
         X1: Input1,
         X2: Input2 = None,
         full_output_cov: Optional[bool] = False,
     ) -> MultiOutputCovariance:
         return separate_independent_cov_fn(
-            params, kernels, X1, X2, full_cov=True, full_output_cov=full_output_cov
+            params,
+            kernel,
+            X1,
+            X2,
+            full_cov=True,
+            full_output_cov=full_output_cov
+            # params, kernels, X1, X2, full_cov=True, full_output_cov=full_output_cov
         )
         # return separate_independent_cov_fn(params, kernels, X1, X2, full_output_cov)
 
     @staticmethod
     def K_diag(
         params: dict,
-        kernels: Union[List[Kernel], Kernel],
+        # kernels: Union[List[Kernel], Kernel],
+        kernel: Kernel,
         X: Input1,
         full_output_cov: Optional[bool] = False,
     ) -> MultiOutputCovariance:
         return separate_independent_cov_fn(
-            params, kernels, X1=X, full_cov=False, full_output_cov=full_output_cov
+            params,
+            kernel,
+            X1=X,
+            full_cov=False,
+            full_output_cov=full_output_cov
+            # params, kernels, X1=X, full_cov=False, full_output_cov=full_output_cov
         )

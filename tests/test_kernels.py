@@ -17,11 +17,11 @@ full_covs = [True, False]
 class Data:
     X1 = [
         jnp.linspace(0, 10, 20).reshape(10, input_dim),
-        jnp.linspace(0, 10, 80 * 5).reshape(5, 4, 10, 2),
+        # jnp.linspace(0, 10, 80 * 5).reshape(5, 4, 10, 2),
     ]
     X2 = [
         jnp.linspace(0, 10, 60).reshape(30, input_dim),
-        jnp.linspace(0, 10, 240).reshape(5, 4, 6, 2),
+        # jnp.linspace(0, 10, 240).reshape(5, 4, 6, 2),
     ]
 
 

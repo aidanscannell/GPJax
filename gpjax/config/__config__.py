@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass
+from typing import Callable
 
 import jax.numpy as jnp
-from tensorflow_probability.substrates import jax as tfp
 
-tfb = tfp.bijectors
+# from tensorflow_probability.substrates import jax as tfp
+
+# tfb = tfp.bijectors
+
+
+def softplus(x):
+    return jnp.log(1 + jnp.exp(x))
 
 
 @dataclass(frozen=True)
@@ -23,7 +29,8 @@ class Config:
     int: type = jnp.int64
     float: type = jnp.float64
     jitter: float = 1e-6
-    positive_bijector: tfp.bijectors.Bijector = tfb.Softplus()
+    positive_bijector: Callable = softplus
+    # positive_bijector: tfp.bijectors.Bijector = tfb.Softplus()
     positive_minimum: float = 0.0
 
 

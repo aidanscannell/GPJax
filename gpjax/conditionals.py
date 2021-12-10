@@ -55,10 +55,21 @@ def conditional(
         q_sqrt=q_sqrt,
         white=white,
     )
+    # f_mean, f_cov = independent_output_conditional(
+    #     kernel_params,
+    #     Xnew,
+    #     # inducing_variable,
+    #     X,
+    #     kernel,
+    #     f=f,
+    #     full_cov=full_cov,
+    #     q_sqrt=q_sqrt,
+    #     white=white,
+    # )
     return f_mean, f_cov
 
 
-@multifunction(None, None, None, Kernel)
+# @multifunction(None, None, None, Kernel)
 def _conditional(
     kernel_params: dict,
     xnew: tjax.Array1[InputDim],
@@ -122,38 +133,112 @@ def single_output_conditional(
     Kmn = kernel(kernel_params, X, Xnew)  # [M, N]
     Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [N, N]
 
+    means, covs = base_conditional(
+        Kmn, Kmm, Knn, f[:, 0], full_cov=full_cov, q_sqrt=q_sqrt[0, :, :], white=white
+    )
+    # if full_cov:
+    #     means = jnp.expand_dims(means, 0)
+    #     covs = jnp.expand_dims(covs, 0)
+    # else:
+    #     means = jnp.expand_dims(means, -1)
+    #     covs = jnp.expand_dims(covs, -1)
+    means = jnp.expand_dims(means, -1)
+    covs = jnp.expand_dims(covs, -1)
+    return means, covs
+    # # setup axis containing output dim which are to be mapped over
+    # if full_cov:  # [output_dim, num_data, num_data]
+    #     out_axes = (-1, 0)
+    # else:  # [num_data, output_dim]
+    #     out_axes = (-1, -1)
+    # if q_sqrt is not None:
+    #     if q_sqrt.ndim == 2:
+    #         in_axes = (-1, -1)
+    #     elif q_sqrt.ndim == 3:
+    #         in_axes = (-1, 0)
+    #     else:
+    #         raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
+
+    #     def base_conditional_wrapper(f_, q_sqrt_):
+    #         return base_conditional(
+    #             Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
+    #         )
+
+    #     f_mean, f_cov = jax.vmap(
+    #         base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+    #     )(f, q_sqrt)
+    # else:
+
+    #     def base_conditional_wrapper(f_):
+    #         return base_conditional(
+    #             Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt, white=white
+    #         )
+
+    #     f_mean, f_cov = jax.vmap(
+    #         base_conditional_wrapper, in_axes=-1, out_axes=out_axes
+    #     )(f)
+    # return f_mean, f_cov
+
+
+# @conditional.dispatch(None, None, None, MultioutputKernel)
+# @conditional.dispatch(None, None, None, SeparateIndependent)
+def independent_output_conditional_new(
+    # def conditional(
+    kernel_params: dict,
+    Xnew: tjax.Array2[NumData, InputDim],
+    X: tjax.Array2[NumInducing, InputDim],
+    # inducing_variable: InducingVariable,
+    kernel: Union[Kernel, MultioutputKernel],
+    f: tjax.Array2[NumInducing, OutputDim],
+    full_cov: Optional[bool] = False,
+    full_output_cov: Optional[bool] = False,
+    q_sqrt: Optional[
+        Union[
+            tjax.Array3[OutputDim, NumInducing, NumInducing],
+            tjax.Array2[NumInducing, OutputDim],
+        ]
+    ] = None,
+    white: Optional[bool] = False,
+):
+    """Multi-output GP conditional where outputs are assumed independent."""
+    Kmm = (
+        kernel(kernel_params, X, X)
+        + jnp.eye(X.shape[-2], dtype=X.dtype) * default_jitter()
+    )  # [P, M, M]
+    Kmn = kernel(kernel_params, X, Xnew)  # [P, M, N]
+    Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [P, N, N] or [N, P]
+    # output_dim = q_sqrt.shape[0]
+    # Kmn = jnp.tile(jnp.expand_dims(Kmn, 0), (output_dim, 1, 1))
+    # Kmm = jnp.tile(jnp.expand_dims(Kmm, 0), (output_dim, 1, 1))
+    # Knn = jnp.tile(jnp.expand_dims(Knn, 0), (output_dim, 1, 1))
+
     # setup axis containing output dim which are to be mapped over
-    if full_cov:  # [output_dim, num_data, num_data]
-        out_axes = (-1, 0)
-    else:  # [num_data, output_dim]
-        out_axes = (-1, -1)
-    if q_sqrt is not None:
-        if q_sqrt.ndim == 2:
-            in_axes = (-1, -1)
-        elif q_sqrt.ndim == 3:
-            in_axes = (-1, 0)
-        else:
-            raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
+    # [num_data, output_dim]
+    out_axes = (-1, -1)
+    in_axes = (0, 0, -1, -1, 0)
 
-        def base_conditional_wrapper(f_, q_sqrt_):
-            return base_conditional(
-                Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
-            )
+    def base_conditional_wrapper(Kmn_, Kmm_, Knn_, f_, q_sqrt_):
+        return base_conditional(
+            Kmn_, Kmm_, Knn_, f_, full_cov=full_cov, q_sqrt=q_sqrt_, white=white
+        )
 
-        f_mean, f_cov = jax.vmap(
-            base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
-        )(f, q_sqrt)
-    else:
+    F_mean, F_cov = [], []
+    for i in range(2):
+        f_mean, f_cov = base_conditional(
+            Kmn[i, :, :],
+            Kmm[i, :, :],
+            Knn[i, :, :],
+            f[:, i],
+            q_sqrt=q_sqrt[i, :, :],
+            white=white,
+        )
+        F_mean.append(f_mean)
+        F_cov.append(f_cov)
+    return jnp.stack(F_mean, 0), jnp.stack(F_cov, 0)
 
-        def base_conditional_wrapper(f_):
-            return base_conditional(
-                Kmn, Kmm, Knn, f_, full_cov=full_cov, q_sqrt=q_sqrt, white=white
-            )
-
-        f_mean, f_cov = jax.vmap(
-            base_conditional_wrapper, in_axes=-1, out_axes=out_axes
-        )(f)
-    return f_mean, f_cov
+    # F_mean, F_cov = jax.vmap(
+    #     base_conditional_wrapper, in_axes=in_axes, out_axes=out_axes
+    # )(Kmn, Kmm, Knn, f, q_sqrt)
+    # return F_mean, F_cov
 
 
 # @conditional.dispatch(None, None, None, MultioutputKernel)
@@ -183,6 +268,10 @@ def independent_output_conditional(
     )  # [P, M, M]
     Kmn = kernel(kernel_params, X, Xnew)  # [P, M, N]
     Knn = kernel(kernel_params, Xnew, full_cov=full_cov)  # [P, N, N] or [N, P]
+    # output_dim = q_sqrt.shape[0]
+    # Kmn = jnp.tile(jnp.expand_dims(Kmn, 0), (output_dim, 1, 1))
+    # Kmm = jnp.tile(jnp.expand_dims(Kmm, 0), (output_dim, 1, 1))
+    # Knn = jnp.tile(jnp.expand_dims(Knn, 0), (output_dim, 1, 1))
 
     # setup axis containing output dim which are to be mapped over
     if full_cov:
@@ -202,6 +291,7 @@ def independent_output_conditional(
                 in_axes = (0, 0, 0, -1, 0)
             else:
                 in_axes = (0, 0, -1, -1, 0)
+                # in_axes = (0, 0, 0, -1, 0)
         else:
             raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
 
@@ -230,7 +320,7 @@ def independent_output_conditional(
     return F_mean, F_cov
 
 
-@_conditional.dispatch(None, None, None, SeparateIndependent)
+# @_conditional.dispatch(None, None, None, SeparateIndependent)
 def _independent_output_conditional(
     kernel_params: dict,
     xnew: tjax.Array1[InputDim],
@@ -247,24 +337,31 @@ def _independent_output_conditional(
     white: Optional[bool] = False,
 ):
     """Independent multi-output GP conditional for single input xnew [input_dim]"""
+    # Kmm = kernel(kernel_params, X, X)  # [P, M, M]
+    # Kmm += jnp.eye(Kmm.shape, dtype=X.dtype) * default_jitter() + 1.0
     Kmm = (
         kernel(kernel_params, X, X)
         + jnp.eye(X.shape[-2], dtype=X.dtype) * default_jitter()
     )  # [P, M, M]
     Kmn = kernel(kernel_params, X, xnew)  # [P, M]
     Knn = kernel(kernel_params, xnew, full_cov=False)  # [P]
-    # print("inside _independent_output_conditional")
-    # print(Kmm.shape)
-    # print(Kmn.shape)
-    # print(Knn.shape)
+    print("inside _independent_output_conditional")
+    print(xnew.shape)
+    print(X.shape)
+    print(Kmm.shape)
+    print(Kmn.shape)
+    print(Knn.shape)
+    print(f.shape)
+    print(q_sqrt.shape)
 
     # setup axis containing output dim which are to be mapped over
     out_axes = (-1, -1)
     if q_sqrt is not None:
         if q_sqrt.ndim == 2:
-            in_axes = (0, 0, 0, -1, -1)
+            # in_axes = (0, 0, 0, -1, -1)
+            in_axes = (None, None, None, -1, -1)
         elif q_sqrt.ndim == 3:
-            in_axes = (0, 0, 0, -1, 0)
+            in_axes = (None, None, None, -1, 0)
         else:
             raise ValueError("Bad dimension for q_sqrt: %s" % str(q_sqrt.ndim))
 
@@ -375,6 +472,9 @@ def base_conditional_with_lm(
     Lm can be precomputed, improving performance.
     """
     A = jsp.linalg.solve_triangular(Lm, Kmn, lower=True)  # [M, N]
+    # print("A")
+    # print(A.shape)
+    # print(Knn.shape)
 
     # compute the covariance due to the conditioning
     if full_cov:
