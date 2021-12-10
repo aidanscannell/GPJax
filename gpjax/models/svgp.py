@@ -230,4 +230,4 @@ class SVGP(GPModel):
         #     full_output_cov,
         #     self.whiten,
         # )
-        )
+        # )
