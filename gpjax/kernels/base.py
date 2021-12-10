@@ -49,7 +49,7 @@ def covariance_decorator(
     return wrapper
 
 
-# @jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
+# @partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(m,d)->(n,m)")
 def batched_covariance_map(
     params: dict,
     kernel: Callable[[dict, Input1, Input2], Covariance],
@@ -72,7 +72,7 @@ def batched_covariance_map(
     return jax.vmap(lambda xi: jax.vmap(lambda xj: kernel(params, xi, xj))(X2))(X1)
 
 
-# @jax.partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(d)->(n)")
+# @partial(jnp.vectorize, excluded=(0, 1), signature="(n,d),(d)->(n)")
 def single_batched_covariance_map(
     params: dict,
     kernel: Callable[[dict, Input1, Input2], Covariance],

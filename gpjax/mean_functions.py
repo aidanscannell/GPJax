@@ -22,7 +22,7 @@ class MeanFunction(Module, abc.ABC):
         else:
             self.default_int = default_int
 
-    # @jax.partial(jax.jit, static_argnums=0)
+    # @partial(jax.jit, static_argnums=0)
     def __call__(self, params: dict, X: InputData) -> OutputData:
         """Return the mean functon evaluated at the input tensor X
 
@@ -83,7 +83,7 @@ class Constant(MeanFunction):
     ) -> dict:
         return {"constant": None}
 
-    # @jax.partial(jax.jit, static_argnums=0)
+    # @partial(jax.jit, static_argnums=0)
     def __call__(self, params: dict, X: InputData) -> OutputData:
         """Returns constant with shape (X.shape[:-1], output_dim)
 
@@ -113,7 +113,7 @@ class Zero(Constant):
     ) -> dict:
         return {}
 
-    # @jax.partial(jax.jit, static_argnums=(0))
+    # @partial(jax.jit, static_argnums=(0))
     def __call__(self, params: dict, X: InputData) -> OutputData:
         """Returns zeros with shape the input tensor (X.shape[:-1], output_dim)
 

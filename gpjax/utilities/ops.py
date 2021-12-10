@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from typing import List, Union
+from functools import partial
 
 import jax
 import numpy as np
@@ -8,24 +9,24 @@ from jax import numpy as jnp
 EllipsisType = type(...)
 
 
-@jax.partial(jnp.vectorize, signature="(m)->(m,m)")
+@partial(jnp.vectorize, signature="(m)->(m,m)")
 def batched_diag(K: jnp.DeviceArray) -> jnp.DeviceArray:
     return jnp.diag(K)
 
 
-@jax.partial(jnp.vectorize, signature="(m),(m)->(s,m)", excluded=(0, 3))
+@partial(jnp.vectorize, signature="(m),(m)->(s,m)", excluded=(0, 3))
 def sample_mvn_diag(key, mean, var, num_samples: int = 1):
     shape = (num_samples, mean.shape[0])
     v = jax.random.normal(key, shape)
     return mean + v * var
 
 
-@jax.partial(jnp.vectorize, signature="(m),(m,m)->(s,m)", excluded=(0, 3))
+@partial(jnp.vectorize, signature="(m),(m,m)->(s,m)", excluded=(0, 3))
 def sample_mvn(key, mean, cov, num_samples: int = 1):
     return jax.random.multivariate_normal(key, mean, cov, shape=(num_samples,))
 
 
-@jax.partial(jnp.vectorize, signature="(m),(m,m)->(s,m)", excluded=(0, 3, 4))
+@partial(jnp.vectorize, signature="(m),(m,m)->(s,m)", excluded=(0, 3, 4))
 def sample_mvn_chol(key, mean, chol, num_samples: int = 1, lower: bool = True):
     shape = (num_samples, mean.shape[0])
     v = jax.random.normal(key, shape)
