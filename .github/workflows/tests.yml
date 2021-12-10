@@ -2,12 +2,12 @@ name: Tests
 
 on:
   push:
-    branches: [ custom_state_management ]
+    branches: [ develop ]
     paths-ignore:
       - 'README.org'
       - '.gitignore'
   pull_request:
-    branches: [ custom_state_management ]
+    branches: [ develop ]
     paths-ignore:
       - 'README.org'
       - '.gitignore'
