@@ -1,5 +1,7 @@
 * GPJax: Gaussian processes in JAX
 [[https://github.com/aidanscannell/GPJax/actions/workflows/tests.yml/badge.svg?style=svg]]
+
+UPDATE: This repo is no longer maintained. Please see [[https://github.com/JaxGaussianProcesses/GPJax][JaxGaussianProcess/GPJax]] if you're interested in a Gaussian process library in JAX.
   
 =GPJax= is a minimal package for implementing Gaussian process models in Python using [[https://github.com/google/jax][JAX]].
 I have spent a lot of time using [[https://github.com/GPflow/GPflow][GPflow]] and I like how they implement their GP library, in particular,
